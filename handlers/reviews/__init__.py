@@ -1,0 +1,6 @@
+# -*- coding: utf-8 -*-
+"""
+Модуль Reviews - работа с отзывами
+"""
+
+print("✅ handlers/reviews/ загружен")
