@@ -183,9 +183,17 @@ def vk_callback():
         print(f"❌ VK OAuth: не удалось извлечь telegram_user_id из state")
         return render_template_string(ERROR_PAGE, error_message="Некорректный формат state")
     
-    # Обмениваем code на access_token
+    # Получаем PKCE code_verifier для этого пользователя
+    from handlers.vk_integration.vk_config import get_pkce_verifier
+    code_verifier = get_pkce_verifier(telegram_user_id)
+    
+    if not code_verifier:
+        print(f"❌ VK OAuth: PKCE verifier не найден для пользователя {telegram_user_id}")
+        return render_template_string(ERROR_PAGE, error_message="Сессия истекла, попробуйте снова")
+    
+    # Обмениваем code на access_token с PKCE
     vk_oauth = VKOAuth()
-    token_data = vk_oauth.exchange_code_for_token(code)
+    token_data = vk_oauth.exchange_code_for_token(code, code_verifier)
     
     if not token_data:
         print(f"❌ VK OAuth: не удалось обменять code на token")

@@ -15,44 +15,64 @@ class VKOAuth:
     """Класс для работы с VK OAuth"""
     
     @staticmethod
-    def exchange_code_for_token(code: str) -> Optional[Dict]:
+    def exchange_code_for_token(code: str, code_verifier: str = None) -> Optional[Dict]:
         """
-        Обменивает authorization code на access token
+        Обменивает authorization code на access token (VK ID с PKCE)
         
         Args:
             code: Authorization code от VK
+            code_verifier: PKCE code_verifier
             
         Returns:
-            dict: {'access_token': '...', 'email': '...', 'user_id': 123}
+            dict: {'access_token': '...', 'user_id': 123, 'email': '...'}
             или None если ошибка
         """
         try:
-            response = requests.get(
+            # VK ID требует POST запрос
+            data = {
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": VK_REDIRECT_URI,
+                "client_id": VK_APP_ID,
+                "code_verifier": code_verifier
+            }
+            
+            # Device ID для VK ID
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            
+            response = requests.post(
                 VK_OAUTH_TOKEN_URL,
-                params={
-                    "client_id": VK_APP_ID,
-                    "client_secret": VK_APP_SECRET,
-                    "redirect_uri": VK_REDIRECT_URI,
-                    "code": code
-                },
+                data=data,
+                headers=headers,
                 timeout=10
             )
             
+            print(f"📡 VK Token Response: {response.status_code}")
+            print(f"📄 Response body: {response.text}")
+            
             if response.status_code == 200:
-                data = response.json()
+                result = response.json()
                 
-                # Проверяем наличие ошибки
-                if 'error' in data:
-                    print(f"❌ VK OAuth error: {data.get('error_description', data['error'])}")
+                if 'error' in result:
+                    print(f"❌ VK OAuth error: {result.get('error_description', result['error'])}")
                     return None
                 
-                return data
+                # VK ID возвращает: {access_token, user_id, expires_in, ...}
+                return {
+                    'access_token': result.get('access_token'),
+                    'user_id': result.get('user_id'),
+                    'email': result.get('email')
+                }
             else:
-                print(f"❌ VK OAuth HTTP error: {response.status_code}")
+                print(f"❌ VK OAuth HTTP error: {response.status_code} - {response.text}")
                 return None
                 
         except Exception as e:
             print(f"❌ VK OAuth exception: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     @staticmethod
