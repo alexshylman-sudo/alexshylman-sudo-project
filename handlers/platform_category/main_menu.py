@@ -158,6 +158,13 @@ def handle_platform_menu(call):
                 platform_name = f"Telegram: @{telegram.get('channel', '')}"
                 platform_emoji = "✈️"
                 break
+    elif platform_type == "vk":
+        vks = connections.get('vks', [])
+        for vk in vks:
+            if str(vk.get('user_id', '')) == str(platform_id):
+                platform_name = f"VK: {vk.get('group_name', 'ВКонтакте')}"
+                platform_emoji = "💬"
+                break
     
     # Формируем текст
     status_icon = "🟢" if is_connected else "❌"
@@ -605,8 +612,13 @@ def handle_platform_ai_post(call):
             f"• <b>Итого: {cost} токенов</b>\n\n"
         )
     else:
-        cost = 20
-        cost_breakdown = "💰 <b>Стоимость:</b> 20 токенов\n\n"
+        # Для VK, Pinterest, Telegram: текст (20) + изображение (30) = 50 токенов
+        cost = 50
+        cost_breakdown = (
+            "💰 <b>Стоимость:</b> 50 токенов\n"
+            "• Генерация текста: 20 токенов\n"
+            "• Генерация изображения: 30 токенов\n\n"
+        )
     
     text = (
         f"📌 <b>ПУБЛИКАЦИЯ {platform_info['title'].upper()}</b>\n"
@@ -730,6 +742,8 @@ def handle_ai_post_confirm(call):
         cost = 40  # изображение 30 + текст 10
     elif platform_type.lower() == 'telegram':
         cost = 40  # текст 10 + изображение 30
+    elif platform_type.lower() == 'vk':
+        cost = 50  # текст 20 + изображение 30
     else:
         cost = 20
     
@@ -1242,6 +1256,15 @@ def handle_ai_post_confirm(call):
         
         return
     
+    # VK - прямая публикация (как Pinterest)
+    if platform_type.lower() == 'vk':
+        bot.answer_callback_query(call.id, "🤖 Генерирую и публикую в VK...")
+        
+        # Вызываем функцию прямой публикации
+        from handlers.platform_category.vk_direct_publish import publish_vk_directly
+        publish_vk_directly(call, user_id, bot_id, platform_id, category_id, cost)
+        return
+    
     # Для других платформ - старая логика с показом поста
     bot.answer_callback_query(call.id, "🤖 Генерирую пост...")
     
@@ -1360,6 +1383,446 @@ def handle_ai_post_confirm(call):
             reply_markup=markup,
             parse_mode='HTML'
         )
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("publish_post_"))
+def handle_publish_post(call):
+    """
+    Обработчик публикации поста на платформу
+    
+    Формат: publish_post_{platform_type}_{category_id}_{bot_id}_{platform_id}
+    """
+    user_id = call.from_user.id
+    parts = call.data.split("_")
+    
+    # Парсим параметры
+    platform_type = parts[2]  # vk, pinterest, telegram, website
+    category_id = int(parts[3])
+    bot_id = int(parts[4])
+    platform_id = "_".join(parts[5:])
+    
+    # Получаем данные бота
+    bot_data = db.get_bot(bot_id)
+    if not bot_data or bot_data['user_id'] != user_id:
+        bot.answer_callback_query(call.id, "❌ Нет доступа")
+        return
+    
+    # Получаем сгенерированный текст из сообщения
+    message_text = call.message.text or call.message.caption or ""
+    
+    # Извлекаем текст поста (между разделителями)
+    post_text = ""
+    if "━━━━━━━━━━━━━━" in message_text:
+        lines = message_text.split("\n")
+        in_post = False
+        post_lines = []
+        
+        for line in lines:
+            if "━━━━━━━━━━━━━━" in line:
+                if not in_post:
+                    in_post = True
+                    continue
+                else:
+                    break
+            if in_post and line.strip():
+                post_lines.append(line)
+        
+        post_text = "\n".join(post_lines).strip()
+    
+    if not post_text:
+        bot.answer_callback_query(call.id, "❌ Текст поста не найден")
+        return
+    
+    # Показываем статус
+    bot.edit_message_text(
+        "🔄 <b>ПУБЛИКАЦИЯ НАЧАТА</b>\n\n"
+        f"Платформа: {platform_type.upper()}\n"
+        f"Категория ID: {category_id}\n\n"
+        "⏳ Подготовка к публикации...",
+        call.message.chat.id,
+        call.message.message_id,
+        parse_mode='HTML'
+    )
+    
+    # В зависимости от платформы вызываем нужный метод
+    if platform_type == "vk":
+        publish_to_vk(call, user_id, bot_id, platform_id, category_id, post_text)
+    elif platform_type == "pinterest":
+        publish_to_pinterest(call, user_id, bot_id, platform_id, category_id, post_text)
+    elif platform_type == "telegram":
+        publish_to_telegram(call, user_id, bot_id, platform_id, category_id, post_text)
+    elif platform_type == "website":
+        publish_to_website(call, user_id, bot_id, platform_id, category_id, post_text)
+    else:
+        bot.edit_message_text(
+            f"❌ <b>ОШИБКА</b>\n\n"
+            f"Платформа '{platform_type}' не поддерживается",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode='HTML'
+        )
+
+
+def publish_to_vk(call, user_id, bot_id, platform_id, category_id, post_text):
+    """Публикация в VK с генерацией изображения"""
+    from ai.image_generator import generate_image
+    from handlers.platform_settings.utils import build_image_prompt
+    import tempfile
+    import os
+    import random
+    import requests
+    
+    try:
+        # Этап 1: Генерация изображения
+        bot.edit_message_text(
+            "🎨 <b>ГЕНЕРАЦИЯ ИЗОБРАЖЕНИЯ</b>\n\n"
+            f"Текст поста: {len(post_text)} символов\n"
+            "⏳ Создаём AI-изображение...",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode='HTML'
+        )
+        
+        # Получаем категорию для построения промпта
+        category = db.get_category(category_id)
+        category_name = category.get('name', 'контент')
+        description = category.get('description', '')
+        
+        # Получаем настройки изображения категории
+        settings = category.get('settings', {})
+        if isinstance(settings, str):
+            import json
+            settings = json.loads(settings)
+        
+        platform_image_settings = settings.get('vk_image_settings', {})
+        
+        # Если настроек нет - используем дефолтные для VK
+        if not platform_image_settings or 'formats' not in platform_image_settings:
+            platform_image_settings = {
+                'formats': ['1:1', '4:5'],  # Квадрат и вертикаль
+                'styles': [],
+                'tones': [],
+                'cameras': [],
+                'angles': [],
+                'qualities': ['high_quality']
+            }
+        
+        # 20% шанс коллажа
+        use_collage = random.random() < 0.2
+        
+        if use_collage:
+            base_prompt = f"{category_name}, collection of photos, multiple panels"
+        else:
+            base_prompt = f"{category_name}, single unified image"
+        
+        # Добавляем фразу из описания категории
+        if description:
+            desc_phrases = [s.strip() for s in description.split('.') if s.strip() and len(s.strip()) > 10]
+            if desc_phrases:
+                selected_phrase = random.choice(desc_phrases)
+                base_prompt = f"{base_prompt}. {selected_phrase}"
+        
+        print(f"🎨 Базовый промпт для VK: {base_prompt[:100]}...")
+        
+        # build_image_prompt добавит: стили, тональность, камеры, ракурсы, качество
+        full_prompt, image_format = build_image_prompt(base_prompt, platform_image_settings)
+        
+        print(f"✅ Полный промпт: {full_prompt[:150]}...")
+        print(f"📐 Формат: {image_format}")
+        
+        # Генерируем изображение
+        image_result = generate_image(full_prompt, aspect_ratio=image_format)
+        
+        if not image_result.get('success'):
+            error_msg = image_result.get('error', 'Ошибка генерации изображения')
+            bot.edit_message_text(
+                f"❌ <b>ОШИБКА ГЕНЕРАЦИИ</b>\n\n{error_msg}",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            return
+        
+        # Получаем байты изображения
+        image_bytes = image_result.get('image_bytes')
+        if not image_bytes:
+            bot.edit_message_text(
+                "❌ <b>ОШИБКА</b>\n\nИзображение не содержит данных",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            return
+        
+        # Сохраняем во временный файл
+        fd, image_path = tempfile.mkstemp(suffix='.jpg', prefix='vk_post_')
+        with os.fdopen(fd, 'wb') as f:
+            f.write(image_bytes)
+        
+        # Показываем превью изображения пользователю
+        with open(image_path, 'rb') as photo:
+            bot.send_photo(
+                call.message.chat.id,
+                photo,
+                caption="✅ <b>Изображение создано!</b>\n\n"
+                        "📤 Загружаем в VK...",
+                parse_mode='HTML'
+            )
+        
+        # Показываем успех Этапа 2
+        bot.edit_message_text(
+            "✅ <b>ЭТАП 2 ЗАВЕРШЁН</b>\n\n"
+            "🎨 Изображение сгенерировано\n"
+            "📤 Начинаем загрузку в VK...",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode='HTML'
+        )
+        
+        # Этап 3: Загрузка изображения в VK
+        image_path = image_data['image_path']
+        
+        # Получаем access_token для VK
+        user = db.get_user(user_id)
+        connections = user.get('platform_connections', {})
+        vks = connections.get('vks', [])
+        
+        # Находим нужное VK подключение
+        vk_connection = None
+        for vk in vks:
+            if str(vk.get('user_id')) == str(platform_id):
+                vk_connection = vk
+                break
+        
+        if not vk_connection:
+            bot.edit_message_text(
+                "❌ <b>VK не подключен</b>\n\n"
+                "Подключение не найдено. Подключите VK заново.",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            return
+        
+        access_token = vk_connection.get('access_token')
+        
+        if not access_token:
+            bot.edit_message_text(
+                "❌ <b>Нет токена VK</b>\n\n"
+                "Access token отсутствует. Переподключите VK.",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            return
+        
+        # Загружаем изображение в VK
+        import requests
+        
+        # Шаг 1: Получаем URL для загрузки
+        try:
+            upload_server_response = requests.get(
+                "https://api.vk.com/method/photos.getWallUploadServer",
+                params={
+                    "access_token": access_token,
+                    "v": "5.131"
+                },
+                timeout=10
+            )
+            
+            upload_server_data = upload_server_response.json()
+            
+            if 'error' in upload_server_data:
+                error_msg = upload_server_data['error'].get('error_msg', 'Unknown error')
+                bot.edit_message_text(
+                    f"❌ <b>Ошибка VK API</b>\n\n{error_msg}",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode='HTML'
+                )
+                return
+            
+            upload_url = upload_server_data['response']['upload_url']
+            
+            # Шаг 2: Загружаем фото на сервер VK
+            with open(image_path, 'rb') as photo_file:
+                upload_response = requests.post(
+                    upload_url,
+                    files={'photo': photo_file},
+                    timeout=30
+                )
+            
+            upload_result = upload_response.json()
+            
+            # Шаг 3: Сохраняем фото на стене
+            save_response = requests.get(
+                "https://api.vk.com/method/photos.saveWallPhoto",
+                params={
+                    "access_token": access_token,
+                    "v": "5.131",
+                    "photo": upload_result['photo'],
+                    "server": upload_result['server'],
+                    "hash": upload_result['hash']
+                },
+                timeout=10
+            )
+            
+            save_result = save_response.json()
+            
+            if 'error' in save_result:
+                error_msg = save_result['error'].get('error_msg', 'Unknown error')
+                bot.edit_message_text(
+                    f"❌ <b>Ошибка сохранения фото</b>\n\n{error_msg}",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode='HTML'
+                )
+                return
+            
+            # Получаем attachment ID
+            photo_data = save_result['response'][0]
+            photo_attachment = f"photo{photo_data['owner_id']}_{photo_data['id']}"
+            
+            bot.edit_message_text(
+                "✅ <b>ЭТАП 3 ЗАВЕРШЁН</b>\n\n"
+                "📤 Изображение загружено в VK\n"
+                f"🆔 Attachment: {photo_attachment}\n\n"
+                "🔜 Следующий этап: публикация поста",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            
+            # Сохраняем attachment для следующего этапа
+            # (передаём через временное хранилище)
+            import json
+            temp_data = {
+                'post_text': post_text,
+                'photo_attachment': photo_attachment,
+                'access_token': access_token,
+                'image_path': image_path
+            }
+            
+            # Этап 4: Публикация на стену VK
+            bot.edit_message_text(
+                "📝 <b>ПУБЛИКАЦИЯ НА СТЕНУ VK</b>\n\n"
+                "⏳ Отправляем пост...",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            
+            # Публикуем пост с изображением
+            post_response = requests.get(
+                "https://api.vk.com/method/wall.post",
+                params={
+                    "access_token": access_token,
+                    "v": "5.131",
+                    "message": post_text,
+                    "attachments": photo_attachment,
+                    "from_group": 0  # От имени пользователя
+                },
+                timeout=10
+            )
+            
+            post_result = post_response.json()
+            
+            if 'error' in post_result:
+                error_msg = post_result['error'].get('error_msg', 'Unknown error')
+                error_code = post_result['error'].get('error_code', 0)
+                
+                bot.edit_message_text(
+                    f"❌ <b>Ошибка публикации</b>\n\n"
+                    f"Код: {error_code}\n"
+                    f"Сообщение: {error_msg}",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode='HTML'
+                )
+                return
+            
+            # Получаем ID опубликованного поста
+            post_id = post_result['response']['post_id']
+            owner_id = vk_connection.get('user_id')
+            post_url = f"https://vk.com/wall{owner_id}_{post_id}"
+            
+            # Успех! Показываем результат
+            bot.edit_message_text(
+                "🎉 <b>ПОСТ ОПУБЛИКОВАН!</b>\n\n"
+                "✅ Изображение создано\n"
+                "✅ Загружено в VK\n"
+                "✅ Опубликовано на стене\n\n"
+                f"🔗 <a href='{post_url}'>Открыть пост</a>\n\n"
+                f"📊 Символов: {len(post_text)}",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
+            
+            # Очищаем временный файл
+            try:
+                import os
+                os.remove(image_path)
+            except:
+                pass
+            
+        except requests.exceptions.Timeout:
+            bot.edit_message_text(
+                "❌ <b>Таймаут VK API</b>\n\n"
+                "Превышено время ожидания. Попробуйте позже.",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            bot.edit_message_text(
+                f"❌ <b>Ошибка загрузки в VK</b>\n\n{str(e)}",
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode='HTML'
+            )
+            import traceback
+            traceback.print_exc()
+        
+        # TODO: Этап 3 - загрузка в VK (следующий этап)
+        
+    except Exception as e:
+        bot.edit_message_text(
+            f"❌ <b>ОШИБКА</b>\n\n{str(e)}",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode='HTML'
+        )
+        import traceback
+        traceback.print_exc()
+
+
+def publish_to_pinterest(call, user_id, bot_id, platform_id, category_id, post_text):
+    """Публикация в Pinterest (TODO)"""
+    bot.edit_message_text(
+        "⚠️ Публикация в Pinterest пока не реализована",
+        call.message.chat.id,
+        call.message.message_id
+    )
+
+
+def publish_to_telegram(call, user_id, bot_id, platform_id, category_id, post_text):
+    """Публикация в Telegram (TODO)"""
+    bot.edit_message_text(
+        "⚠️ Публикация в Telegram пока не реализована",
+        call.message.chat.id,
+        call.message.message_id
+    )
+
+
+def publish_to_website(call, user_id, bot_id, platform_id, category_id, post_text):
+    """Публикация на сайт (TODO)"""
+    bot.edit_message_text(
+        "⚠️ Публикация на сайт пока не реализована",
+        call.message.chat.id,
+        call.message.message_id
+    )
 
 
 

@@ -64,10 +64,12 @@ class VKOAuth:
                     print(f"❌ VK OAuth error: {result.get('error_description', result['error'])}")
                     return None
                 
-                # VK ID возвращает: {access_token, user_id, expires_in, ...}
+                # VK ID возвращает: {access_token, refresh_token, user_id, expires_in, email}
                 return {
                     'access_token': result.get('access_token'),
+                    'refresh_token': result.get('refresh_token'),
                     'user_id': result.get('user_id'),
+                    'expires_in': result.get('expires_in'),  # секунды до истечения
                     'email': result.get('email')
                 }
             else:
@@ -76,6 +78,73 @@ class VKOAuth:
                 
         except Exception as e:
             print(f"❌ VK OAuth exception: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    @staticmethod
+    def refresh_access_token(refresh_token: str, device_id: str = None) -> Optional[Dict]:
+        """
+        Обновляет access_token используя refresh_token
+        
+        Args:
+            refresh_token: Refresh token от VK
+            device_id: Device ID (опционально)
+            
+        Returns:
+            dict: {
+                'access_token': 'новый токен',
+                'refresh_token': 'новый refresh_token',
+                'expires_in': секунды
+            } или None при ошибке
+        """
+        try:
+            print(f"🔄 Обновление VK токена через refresh_token...")
+            
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": VK_APP_ID
+            }
+            
+            if device_id:
+                data["device_id"] = device_id
+            
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            
+            response = requests.post(
+                VK_OAUTH_TOKEN_URL,
+                data=data,
+                headers=headers,
+                timeout=10
+            )
+            
+            print(f"📡 VK Refresh Response: {response.status_code}")
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                if 'error' in result:
+                    print(f"❌ VK Refresh error: {result.get('error_description', result['error'])}")
+                    return None
+                
+                print(f"✅ VK токен успешно обновлён!")
+                
+                # Возвращаем новые токены
+                return {
+                    'access_token': result.get('access_token'),
+                    'refresh_token': result.get('refresh_token'),
+                    'expires_in': result.get('expires_in', 86400),
+                    'user_id': result.get('user_id')
+                }
+            else:
+                print(f"❌ VK Refresh HTTP error: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ VK Refresh exception: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -157,9 +226,17 @@ class VKOAuth:
                 return False
             
             # Сохраняем подключение
+            import time
+            
+            # Вычисляем время истечения токена
+            expires_in = vk_data.get('expires_in', 86400)  # по умолчанию 24 часа
+            expires_at = int(time.time()) + expires_in
+            
             vk_connection = {
                 'user_id': vk_data['user_id'],
                 'access_token': vk_data['access_token'],
+                'refresh_token': vk_data.get('refresh_token'),  # НОВОЕ
+                'expires_at': expires_at,  # НОВОЕ - timestamp когда истечёт
                 'email': vk_data.get('email'),
                 'first_name': vk_user_info.get('first_name'),
                 'last_name': vk_user_info.get('last_name'),
@@ -216,6 +293,100 @@ class VKOAuth:
             except:
                 pass
             return False
+    
+    @staticmethod
+    def ensure_valid_token(db, telegram_user_id: int, vk_user_id: str) -> Optional[str]:
+        """
+        Проверяет токен и обновляет если истёк
+        
+        Args:
+            db: Database instance
+            telegram_user_id: ID пользователя в Telegram
+            vk_user_id: ID пользователя VK (строка)
+            
+        Returns:
+            str: Валидный access_token или None при ошибке
+        """
+        try:
+            import time
+            
+            # Получаем пользователя
+            user = db.get_user(telegram_user_id)
+            if not user:
+                print(f"❌ Пользователь {telegram_user_id} не найден")
+                return None
+            
+            # Получаем VK подключение
+            connections = user.get('platform_connections', {})
+            if isinstance(connections, str):
+                connections = json.loads(connections)
+            
+            vks = connections.get('vks', [])
+            
+            # Находим нужное подключение
+            vk_connection = None
+            vk_index = None
+            for i, vk in enumerate(vks):
+                if str(vk.get('user_id')) == str(vk_user_id):
+                    vk_connection = vk
+                    vk_index = i
+                    break
+            
+            if not vk_connection:
+                print(f"❌ VK подключение {vk_user_id} не найдено")
+                return None
+            
+            # Проверяем не истёк ли токен
+            expires_at = vk_connection.get('expires_at', 0)
+            current_time = int(time.time())
+            
+            # Если токен истекает в течение 5 минут - обновляем
+            if current_time >= (expires_at - 300):
+                print(f"🔄 Токен истёк или истекает скоро. Обновляем...")
+                
+                refresh_token = vk_connection.get('refresh_token')
+                
+                if not refresh_token:
+                    print(f"❌ Нет refresh_token. Нужно переподключить VK")
+                    return None
+                
+                # Обновляем токен
+                new_tokens = VKOAuth.refresh_access_token(refresh_token)
+                
+                if not new_tokens:
+                    print(f"❌ Не удалось обновить токен")
+                    return None
+                
+                # Обновляем данные
+                vk_connection['access_token'] = new_tokens['access_token']
+                vk_connection['refresh_token'] = new_tokens['refresh_token']
+                vk_connection['expires_at'] = current_time + new_tokens['expires_in']
+                
+                # Сохраняем в БД
+                vks[vk_index] = vk_connection
+                connections['vks'] = vks
+                
+                db.cursor.execute("""
+                    UPDATE users
+                    SET platform_connections = %s::jsonb
+                    WHERE telegram_id = %s
+                """, (json.dumps(connections), telegram_user_id))
+                db.conn.commit()
+                
+                print(f"✅ Токен обновлён! Истекает через {new_tokens['expires_in']} секунд")
+                
+                return new_tokens['access_token']
+            else:
+                # Токен валиден
+                remaining = expires_at - current_time
+                print(f"✅ Токен валиден. Осталось {remaining} секунд")
+                return vk_connection['access_token']
+                
+        except Exception as e:
+            print(f"❌ Ошибка ensure_valid_token: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
 
 print("✅ VK OAuth Handler загружен")

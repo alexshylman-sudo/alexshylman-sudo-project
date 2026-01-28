@@ -415,6 +415,32 @@ def handle_open_category(call):
             )
         )
     
+    # VK подключения
+    verified_vk = [v for v in connections.get('vks', []) if v.get('status') == 'active']
+    for vk in verified_vk:
+        group_name = vk.get('group_name', 'ВКонтакте')
+        vk_id = str(vk.get('user_id', ''))
+        
+        # Проверка подключения (новая структура: [{'id': 'user_id'}])
+        vk_list = bot_connections.get('vk', [])
+        is_connected = False
+        for item in vk_list:
+            if isinstance(item, dict) and str(item.get('id')) == vk_id:
+                is_connected = True
+                break
+            elif isinstance(item, str) and str(item) == vk_id:
+                is_connected = True
+                break
+        
+        icon = "🟢" if is_connected else "❌"
+        
+        markup.add(
+            types.InlineKeyboardButton(
+                f"{icon} VK: {group_name}",
+                callback_data=f"platform_menu_{category_id}_{bot_id}_vk_{vk_id}"
+            )
+        )
+    
     # Настройки и навигация
     markup.add(
         types.InlineKeyboardButton("⚙️ Настройки категории", callback_data=f"category_settings_{category_id}"),

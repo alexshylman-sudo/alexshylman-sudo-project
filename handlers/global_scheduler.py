@@ -7,7 +7,16 @@ import logging
 from telebot import types
 from loader import bot, db
 from utils import escape_html, safe_answer_callback
-# from psycopg2.extras import RealDictCursor  # Не используется
+
+# psycopg2/3 compatibility
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    PSYCOPG_VERSION = 3
+except ImportError:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    PSYCOPG_VERSION = 2
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +31,12 @@ def _get_platform_scheduler(category_id, platform_type, platform_id):
     Совместимость со старым API
     """
     try:
-        cursor = db.conn.cursor(cursor_factory=RealDictCursor)
+        # Создаём cursor с поддержкой dict_row
+        if PSYCOPG_VERSION == 3:
+            cursor = db.conn.cursor(row_factory=dict_row)
+        else:
+            cursor = db.conn.cursor(row_factory=dict_row) if PSYCOPG_VERSION == 3 else db.conn.cursor(cursor_factory=RealDictCursor)
+            
         cursor.execute("""
             SELECT schedule_days, schedule_times, posts_per_day, enabled, post_frequency
             FROM platform_schedules
@@ -1160,7 +1174,7 @@ def handle_scheduler_setup(call):
         
         # Получаем текущее расписание
         try:
-            cursor = db.conn.cursor(cursor_factory=RealDictCursor)
+            cursor = db.conn.cursor(row_factory=dict_row) if PSYCOPG_VERSION == 3 else db.conn.cursor(cursor_factory=RealDictCursor)
             cursor.execute("""
                 SELECT schedule_days, posts_per_day, schedule_times, enabled 
                 FROM platform_schedules
@@ -1452,7 +1466,7 @@ def handle_schedule_times(call):
         
         # Получаем текущие выбранные времена
         try:
-            cursor = db.conn.cursor(cursor_factory=RealDictCursor)
+            cursor = db.conn.cursor(row_factory=dict_row) if PSYCOPG_VERSION == 3 else db.conn.cursor(cursor_factory=RealDictCursor)
             cursor.execute("""
                 SELECT schedule_times FROM platform_schedules
                 WHERE category_id = %s AND platform_type = %s AND platform_id = %s
@@ -1561,7 +1575,7 @@ def toggle_schedule_time(call):
         
         # Получаем текущие времена
         try:
-            cursor = db.conn.cursor(cursor_factory=RealDictCursor)
+            cursor = db.conn.cursor(row_factory=dict_row) if PSYCOPG_VERSION == 3 else db.conn.cursor(cursor_factory=RealDictCursor)
             cursor.execute("""
                 SELECT schedule_times FROM platform_schedules
                 WHERE category_id = %s AND platform_type = %s AND platform_id = %s

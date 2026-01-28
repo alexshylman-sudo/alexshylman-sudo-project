@@ -12,6 +12,7 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")  # Claude AI
+NANO_BANANA_API_KEY = os.getenv("NANO_BANANA_API_KEY", "")  # Image generation
 
 # --- Pinterest OAuth ---
 PINTEREST_APP_ID = os.getenv("PINTEREST_APP_ID", "")
