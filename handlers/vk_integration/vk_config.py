@@ -62,8 +62,20 @@ def get_vk_auth_url(telegram_user_id: int) -> str:
     # Генерируем PKCE пару
     code_verifier, code_challenge = generate_pkce_pair()
     
-    # Сохраняем verifier для использования при обмене code на token
-    _pkce_storage[telegram_user_id] = code_verifier
+    # Сохраняем verifier в БД для межпроцессного доступа
+    from database.database import db
+    try:
+        db.cursor.execute("""
+            INSERT INTO vk_pkce_sessions (telegram_user_id, code_verifier, created_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (telegram_user_id) 
+            DO UPDATE SET code_verifier = EXCLUDED.code_verifier, created_at = NOW()
+        """, (telegram_user_id, code_verifier))
+        db.conn.commit()
+    except Exception as e:
+        print(f"⚠️ Ошибка сохранения PKCE: {e}")
+        # Fallback на in-memory storage
+        _pkce_storage[telegram_user_id] = code_verifier
     
     return (
         f"{VK_OAUTH_AUTHORIZE_URL}"
@@ -87,6 +99,28 @@ def get_pkce_verifier(telegram_user_id: int) -> str:
     Returns:
         str: code_verifier или None
     """
+    # Сначала пробуем получить из БД
+    from database.database import db
+    try:
+        db.cursor.execute("""
+            SELECT code_verifier FROM vk_pkce_sessions
+            WHERE telegram_user_id = %s
+            AND created_at > NOW() - INTERVAL '10 minutes'
+        """, (telegram_user_id,))
+        result = db.cursor.fetchone()
+        
+        if result:
+            code_verifier = result['code_verifier']
+            # Удаляем использованный verifier
+            db.cursor.execute("""
+                DELETE FROM vk_pkce_sessions WHERE telegram_user_id = %s
+            """, (telegram_user_id,))
+            db.conn.commit()
+            return code_verifier
+    except Exception as e:
+        print(f"⚠️ Ошибка получения PKCE из БД: {e}")
+    
+    # Fallback на in-memory storage
     return _pkce_storage.pop(telegram_user_id, None)
 
 
