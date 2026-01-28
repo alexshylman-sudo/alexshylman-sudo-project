@@ -6,6 +6,7 @@ from telebot import types
 from loader import bot, db
 from utils import escape_html
 import json
+from .vk import user_adding_platform  # Импорт для совместимости с VK handlers
 
 def manage_social_platforms(call):
     """Управление соцсетями"""
@@ -493,34 +494,8 @@ def show_vk_instruction(call):
     bot.answer_callback_query(call.id)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == "add_platform_vk")
-def add_platform_vk_with_instruction(call):
-    """ВКонтакте с кнопкой инструкции"""
-    text = (
-        "💬 <b>ПОДКЛЮЧЕНИЕ ВКОНТАКТЕ</b>\n"
-        "━━━━━━━━━━━━━━\n\n"
-        "Что вы хотите сделать?"
-    )
-    
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("📖 Показать инструкцию", callback_data="show_instruction_vk"),
-        types.InlineKeyboardButton("🔌 Начать подключение", callback_data="begin_connect_vk"),
-        types.InlineKeyboardButton("🔙 Назад", callback_data="add_platform_menu")
-    )
-    
-    try:
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=markup,
-            parse_mode='HTML'
-        )
-    except:
-        bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode='HTML')
-    
-    bot.answer_callback_query(call.id)
+# УДАЛЕН: дублирующий обработчик add_platform_vk
+# Теперь используется обработчик из vk_integration/vk_telegram_handler.py
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "begin_connect_vk")
