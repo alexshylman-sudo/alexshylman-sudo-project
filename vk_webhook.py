@@ -152,11 +152,13 @@ def vk_callback():
     code = request.args.get('code')
     state = request.args.get('state')
     error = request.args.get('error')
+    device_id = request.args.get('device_id')  # Нужен для VK ID
     
     print(f"\n{'='*80}")
     print(f"🔵 VK CALLBACK ПОЛУЧЕН")
     print(f"   Code: {code[:20] if code else None}...")
     print(f"   State: {state}")
+    print(f"   Device ID: {device_id}")
     print(f"   Error: {error}")
     print(f"{'='*80}\n")
     
@@ -192,7 +194,7 @@ def vk_callback():
     
     # Обмениваем code на access_token с PKCE
     vk_oauth = VKOAuth()
-    token_data = vk_oauth.exchange_code_for_token(code, code_verifier)
+    token_data = vk_oauth.exchange_code_for_token(code, code_verifier, device_id)
     
     if not token_data:
         print(f"❌ VK OAuth: не удалось обменять code на token")

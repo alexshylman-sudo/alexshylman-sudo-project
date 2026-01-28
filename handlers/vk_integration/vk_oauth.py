@@ -15,13 +15,14 @@ class VKOAuth:
     """Класс для работы с VK OAuth"""
     
     @staticmethod
-    def exchange_code_for_token(code: str, code_verifier: str = None) -> Optional[Dict]:
+    def exchange_code_for_token(code: str, code_verifier: str = None, device_id: str = None) -> Optional[Dict]:
         """
         Обменивает authorization code на access token (VK ID с PKCE)
         
         Args:
             code: Authorization code от VK
             code_verifier: PKCE code_verifier
+            device_id: Device ID от VK (обязателен для VK ID)
             
         Returns:
             dict: {'access_token': '...', 'user_id': 123, 'email': '...'}
@@ -36,6 +37,10 @@ class VKOAuth:
                 "client_id": VK_APP_ID,
                 "code_verifier": code_verifier
             }
+            
+            # Добавляем device_id если есть (обязательно для VK ID)
+            if device_id:
+                data["device_id"] = device_id
             
             # Device ID для VK ID
             headers = {
