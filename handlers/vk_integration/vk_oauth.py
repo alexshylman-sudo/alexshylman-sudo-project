@@ -165,7 +165,8 @@ class VKOAuth:
                 'last_name': vk_user_info.get('last_name'),
                 'photo': vk_user_info.get('photo_200'),
                 'status': 'active',
-                'connected_at': 'now()'
+                'connected_at': 'now()',
+                'group_name': f"{vk_user_info.get('first_name', '')} {vk_user_info.get('last_name', '')}".strip()
             }
             
             # Обновляем platform_connections пользователя
@@ -173,7 +174,25 @@ class VKOAuth:
             if isinstance(platform_connections, str):
                 platform_connections = json.loads(platform_connections)
             
-            platform_connections['vk'] = vk_connection
+            # VK сохраняем как массив (как и другие платформы)
+            vks = platform_connections.get('vks', [])
+            if not isinstance(vks, list):
+                vks = []
+            
+            # Проверяем не подключен ли уже этот VK аккаунт
+            existing_index = None
+            for i, existing_vk in enumerate(vks):
+                if existing_vk.get('user_id') == vk_data['user_id']:
+                    existing_index = i
+                    break
+            
+            # Обновляем или добавляем
+            if existing_index is not None:
+                vks[existing_index] = vk_connection
+            else:
+                vks.append(vk_connection)
+            
+            platform_connections['vks'] = vks
             
             # Сохраняем в БД
             db.cursor.execute("""

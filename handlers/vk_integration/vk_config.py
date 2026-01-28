@@ -86,6 +86,7 @@ def get_vk_auth_url(telegram_user_id: int) -> str:
         f"&state={state}"
         f"&code_challenge={code_challenge}"
         f"&code_challenge_method=s256"
+        f"&display=mobile"
     )
 
 
