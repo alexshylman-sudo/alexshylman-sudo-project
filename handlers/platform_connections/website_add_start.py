@@ -296,104 +296,12 @@ def handle_platform_input(message):
             
             bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode='HTML')
     
-    # ============ ВКОНТАКТЕ ============
-    elif platform_type == 'vk':
-        if step == 'group_id':
-            group_id = message.text.strip().replace('https://vk.com/', '').replace('http://vk.com/', '')
-            platform_data['data']['group_id'] = group_id
-            platform_data['step'] = 'token'
-            
-            text = (
-                "💬 <b>ПОДКЛЮЧЕНИЕ ВКОНТАКТЕ</b>\n"
-                "━━━━━━━━━━━━━━\n\n"
-                f"✅ Группа: <code>{escape_html(group_id)}</code>\n\n"
-                "<b>Шаг 2 из 2:</b> Токен доступа\n\n"
-                "📝 <b>Как получить токен:</b>\n\n"
-                "1. Перейдите в vk.com/dev\n"
-                "2. Создайте приложение\n"
-                "3. Получите токен сообщества\n"
-                "4. Дайте права на публикацию\n"
-                "5. Отправьте токен сюда\n\n"
-                "⚠️ Токен будет сохранен безопасно"
-            )
-            
-            bot.send_message(message.chat.id, text, parse_mode='HTML')
-            
-        elif step == 'token':
-            token = message.text.strip()
-            
-            try:
-                bot.delete_message(message.chat.id, message.message_id)
-            except:
-                pass
-            
-            # ========== ПРОВЕРКА УНИКАЛЬНОСТИ ==========
-            group_id = platform_data['data']['group_id']
-            uniqueness = check_global_platform_uniqueness('vk', group_id)
-            if not uniqueness['is_unique']:
-                # Платформа уже подключена
-                owner_display = f"@{uniqueness['owner_username']}" if uniqueness['owner_username'] else f"ID: {uniqueness['owner_id']}"
-                
-                text = (
-                    "❌ <b>ПЛАТФОРМА УЖЕ ПОДКЛЮЧЕНА</b>\n"
-                    "━━━━━━━━━━━━━━\n\n"
-                    f"💬 <b>ВКонтакте:</b> {escape_html(group_id)}\n\n"
-                    "⚠️ Эта группа ВКонтакте уже подключена к другому аккаунту.\n\n"
-                    "Каждая платформа может быть подключена только к одному аккаунту в системе.\n\n"
-                    "<i>💡 Если это ваша группа, отключите её от другого аккаунта или обратитесь в поддержку.</i>"
-                )
-                
-                markup = types.InlineKeyboardMarkup(row_width=1)
-                markup.add(
-                    types.InlineKeyboardButton("🔙 Вернуться к подключениям", callback_data="settings_api_keys")
-                )
-                
-                del user_adding_platform[user_id]
-                bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode='HTML')
-                return
-            # ==========================================
-            
-            user = db.get_user(user_id)
-            connections = user.get('platform_connections', {})
-            
-            if not isinstance(connections, dict):
-                connections = {}
-            
-            if 'vks' not in connections:
-                connections['vks'] = []
-            
-            connections['vks'].append({
-                'group_id': platform_data['data']['group_id'],
-                'group_name': platform_data['data']['group_id'],
-                'token': token,
-                'added_at': 'NOW()',
-                'status': 'active'
-            })
-            
-            db.cursor.execute("""
-                UPDATE users 
-                SET platform_connections = %s::jsonb
-                WHERE id = %s
-            """, (json.dumps(connections), user_id))
-            db.conn.commit()
-            
-            del user_adding_platform[user_id]
-            
-            text = (
-                "✅ <b>ВКОНТАКТЕ ПОДКЛЮЧЕН!</b>\n"
-                "━━━━━━━━━━━━━━\n\n"
-                f"💬 Группа: <code>{escape_html(platform_data['data']['group_id'])}</code>\n"
-                f"🔒 Токен: сохранен\n\n"
-                "Готово к автопостингу!"
-            )
-            
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("🔌 Мои подключения", callback_data="settings_api_keys"),
-                types.InlineKeyboardButton("➕ Добавить ещё", callback_data="add_platform_menu")
-            )
-            
-            bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode='HTML')
     
+    # ============================================================================
+    # VK ОБРАБОТКА УДАЛЕНА
+    # ============================================================================
+    # Весь VK OAuth теперь в handlers/vk_integration/
+    # ============================================================================
+
 
 print("✅ handlers/platform_connections/website_add_start.py загружен")

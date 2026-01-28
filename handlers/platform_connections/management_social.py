@@ -430,114 +430,12 @@ def begin_instagram_connection(call):
     
     bot.answer_callback_query(call.id, "📝 Ожидаю username...")
 
-
-@bot.callback_query_handler(func=lambda call: call.data == "show_instruction_vk")
-def show_vk_instruction(call):
-    """Показать подробную инструкцию по получению токена VK"""
-    text = (
-        "📖 <b>ИНСТРУКЦИЯ ПО ПОДКЛЮЧЕНИЮ VK</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>ШАГ 1: Создание приложения</b>\n\n"
-        "1. Перейдите на <code>vk.com/apps?act=manage</code>\n"
-        "2. Нажмите \"Создать приложение\"\n"
-        "3. Выберите тип \"Standalone приложение\"\n"
-        "4. Введите название (например \"AutoPost Bot\")\n"
-        "5. Нажмите \"Подключить приложение\"\n\n"
-        
-        "<b>ШАГ 2: Получение токена</b>\n\n"
-        "Вариант А - Для управления группой:\n"
-        "1. Зайдите в настройки вашей группы\n"
-        "2. Раздел \"API usage\" → \"Ключи доступа\"\n"
-        "3. Создайте токен сообщества\n"
-        "4. Выберите права: wall, photos\n"
-        "5. Скопируйте токен\n\n"
-        
-        "Вариант Б - Быстрый способ (через OAuth):\n"
-        "1. Откройте в браузере ссылку:\n"
-        "<code>https://oauth.vk.com/authorize?client_id=ВАШЕ_APP_ID&display=page&redirect_uri=https://oauth.vk.com/blank.html&scope=wall,photos,groups,offline&response_type=token&v=5.131</code>\n\n"
-        "2. Замените ВАШЕ_APP_ID на ID вашего приложения\n"
-        "3. После авторизации скопируйте access_token из адресной строки\n\n"
-        
-        "<b>ШАГ 3: Подключение в боте</b>\n\n"
-        "1. Нажмите \"🔌 Начать подключение\"\n"
-        "2. Отправьте ID или ссылку на группу\n"
-        "3. Отправьте токен доступа\n\n"
-        
-        "<b>📝 Примеры ID группы:</b>\n"
-        "• <code>mycompany</code>\n"
-        "• <code>https://vk.com/mycompany</code>\n"
-        "• <code>-123456789</code> (если ID отрицательный)\n\n"
-        
-        "⚠️ <b>Важно:</b>\n"
-        "• Вы должны быть администратором группы\n"
-        "• Токен должен иметь права на публикацию\n"
-        "• Токен сохраняется в зашифрованном виде"
-    )
-    
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("🔌 Начать подключение", callback_data="begin_connect_vk"),
-        types.InlineKeyboardButton("🔙 Назад", callback_data="add_platform_vk")
-    )
-    
-    try:
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=markup,
-            parse_mode='HTML'
-        )
-    except:
-        bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode='HTML')
-    
-    bot.answer_callback_query(call.id)
-
-
-# УДАЛЕН: дублирующий обработчик add_platform_vk
-# Теперь используется обработчик из vk_integration/vk_telegram_handler.py
-
-
-@bot.callback_query_handler(func=lambda call: call.data == "begin_connect_vk")
-def begin_vk_connection(call):
-    """Начало подключения ВКонтакте"""
-    user_id = call.from_user.id
-    
-    text = (
-        "💬 <b>ПОДКЛЮЧЕНИЕ ВКОНТАКТЕ</b>\n"
-        "━━━━━━━━━━━━━━\n\n"
-        "<b>Шаг 1 из 2:</b> ID группы\n\n"
-        "Отправьте ID или ссылку на вашу группу ВКонтакте.\n\n"
-        "<b>Примеры:</b>\n"
-        "<code>mycompany</code>\n"
-        "<code>https://vk.com/mycompany</code>\n\n"
-        "<i>💡 Вы должны быть администратором группы</i>"
-    )
-    
-    markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton("📖 Как получить токен?", callback_data="show_instruction_vk"),
-        types.InlineKeyboardButton("❌ Отмена", callback_data="add_platform_menu")
-    )
-    
-    user_adding_platform[user_id] = {
-        'type': 'vk',
-        'step': 'group_id',
-        'data': {}
-    }
-    
-    try:
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=markup,
-            parse_mode='HTML'
-        )
-    except:
-        bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode='HTML')
-    
-    bot.answer_callback_query(call.id, "📝 Ожидаю ID группы...")
+# ============================================================================
+# СТАРЫЕ ОБРАБОТЧИКИ VK УДАЛЕНЫ
+# ============================================================================
+# Все обработчики VK теперь находятся в handlers/vk_integration/
+# Используется OAuth авторизация через VK ID
+# ============================================================================
 
 
 print("✅ handlers/platform_connections/management_social.py загружен")
