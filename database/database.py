@@ -1,8 +1,16 @@
 """
 Класс для работы с PostgreSQL базой данных с автоматическим rollback
 """
-import psycopg
-from psycopg.rows import dict_row
+# Совместимость с psycopg2 (локально) и psycopg3 (Render.com)
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+    PSYCOPG_VERSION = 3
+except ImportError:
+    import psycopg2 as psycopg
+    from psycopg2.extras import RealDictCursor
+    PSYCOPG_VERSION = 2
+
 import json
 from datetime import datetime
 from config import DATABASE_URL, WELCOME_BONUS
@@ -99,7 +107,13 @@ class Database:
                 autocommit=False
             )
             self.conn.autocommit = False
-            self.cursor = self.conn.cursor(row_factory=dict_row)
+            
+            # Создаем cursor в зависимости от версии psycopg
+            if PSYCOPG_VERSION == 3:
+                self.cursor = self.conn.cursor(row_factory=dict_row)
+            else:
+                self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+            
             self._last_used = time.time()
             print("✅ База данных подключена (Neon.tech с SSL и keepalive)")
         except Exception as e:
@@ -154,7 +168,13 @@ class Database:
             autocommit=False
         )
         self.conn.autocommit = False
-        self.cursor = self.conn.cursor(row_factory=dict_row)
+        
+        # Создаем cursor в зависимости от версии psycopg
+        if PSYCOPG_VERSION == 3:
+            self.cursor = self.conn.cursor(row_factory=dict_row)
+        else:
+            self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+        
         self._last_used = time.time()
         print("✅ Переподключение к БД выполнено")
     
