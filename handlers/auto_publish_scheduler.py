@@ -88,7 +88,8 @@ class AutoPublishScheduler:
             except:
                 pass
             
-            cursor = db.conn.cursor(cursor_factory=RealDictCursor)
+            # Используем существующий cursor из db
+            cursor = db.cursor
             
             now = datetime.now()
             current_time = now.time()
