@@ -155,7 +155,8 @@ def add_platform_menu(call):
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup,
-            parse_mode='HTML'
+            parse_mode='HTML',
+            disable_web_page_preview=True
         )
     except:
         bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode='HTML', disable_web_page_preview=True)
@@ -256,7 +257,8 @@ def handle_manage_platforms(call):
             call.message.chat.id,
             call.message.message_id,
             reply_markup=markup,
-            parse_mode='HTML'
+            parse_mode='HTML',
+            disable_web_page_preview=True
         )
     except:
         bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode='HTML', disable_web_page_preview=True)
