@@ -71,7 +71,7 @@ SUCCESS_PAGE = """
         <h1>VK успешно подключен!</h1>
         <p>Ваш аккаунт ВКонтакте успешно подключен к боту.</p>
         <p>Вы можете закрыть это окно и вернуться в Telegram.</p>
-        <a href="https://t.me/YOUR_BOT_USERNAME" class="button">Вернуться в бот</a>
+        <a href="https://t.me/best_seo_master_bot" class="button">Вернуться в бот</a>
     </div>
 </body>
 </html>
@@ -132,7 +132,7 @@ ERROR_PAGE = """
         <h1>Ошибка подключения</h1>
         <p>{{ error_message }}</p>
         <p>Попробуйте еще раз или обратитесь в поддержку.</p>
-        <a href="https://t.me/YOUR_BOT_USERNAME" class="button">Вернуться в бот</a>
+        <a href="https://t.me/best_seo_master_bot" class="button">Вернуться в бот</a>
     </div>
 </body>
 </html>
