@@ -2,15 +2,22 @@
 Менеджер миграций базы данных
 """
 import os
-import psycopg2
 from datetime import datetime
 from config import DATABASE_URL
+
+# Совместимость с psycopg2 и psycopg3
+try:
+    import psycopg as psycopg_module
+    PSYCOPG_VERSION = 3
+except ImportError:
+    import psycopg2 as psycopg_module
+    PSYCOPG_VERSION = 2
 
 
 class MigrationManager:
     def __init__(self):
         """Инициализация менеджера миграций"""
-        self.conn = psycopg2.connect(DATABASE_URL)
+        self.conn = psycopg_module.connect(DATABASE_URL)
         self.cursor = self.conn.cursor()
         self.migrations_dir = os.path.dirname(__file__)
         
