@@ -7,7 +7,7 @@ import logging
 from telebot import types
 from loader import bot, db
 from utils import escape_html, safe_answer_callback
-from psycopg2.extras import RealDictCursor
+# from psycopg2.extras import RealDictCursor  # Не используется
 
 logger = logging.getLogger(__name__)
 

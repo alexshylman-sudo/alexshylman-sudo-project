@@ -7,7 +7,7 @@ import threading
 import time
 import logging
 from datetime import datetime, time as dt_time
-from psycopg2.extras import RealDictCursor
+# from psycopg2.extras import RealDictCursor  # Не используется
 
 logger = logging.getLogger(__name__)
 
