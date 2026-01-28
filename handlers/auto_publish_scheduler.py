@@ -88,11 +88,13 @@ class AutoPublishScheduler:
             except:
                 pass
             
-            # Создаём новый cursor для этого запроса
-            if hasattr(db, 'PSYCOPG_VERSION') and db.PSYCOPG_VERSION == 3:
+            # Создаём новый cursor для этого запроса с совместимостью psycopg2/3
+            try:
+                import psycopg
                 from psycopg.rows import dict_row
                 cursor = db.conn.cursor(row_factory=dict_row)
-            else:
+            except ImportError:
+                import psycopg2
                 from psycopg2.extras import RealDictCursor
                 cursor = db.conn.cursor(cursor_factory=RealDictCursor)
             
