@@ -1,8 +1,8 @@
 """
 Класс для работы с PostgreSQL базой данных с автоматическим rollback
 """
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 import json
 from datetime import datetime
 from config import DATABASE_URL, WELCOME_BONUS
@@ -26,7 +26,7 @@ def handle_db_errors(func):
                 
                 result = func(self, *args, **kwargs)
                 return result
-            except (psycopg2.OperationalError, psycopg2.InterfaceError, psycopg2.DatabaseError) as e:
+            except (psycopg.OperationalError, psycopg.InterfaceError, psycopg.DatabaseError) as e:
                 # Ошибки подключения - пробуем переподключиться
                 error_msg = str(e)
                 print(f"⚠️ Ошибка соединения с БД в {func.__name__}: {error_msg}")
@@ -93,22 +93,13 @@ class Database:
     def __init__(self):
         """Инициализация подключения к БД с keepalive и SSL для Neon.tech"""
         try:
-            # Параметры подключения для Neon.tech
-            # ВАЖНО: НЕ используем statement_timeout в options (Neon pooler не поддерживает)
-            self.conn = psycopg2.connect(
+            # Параметры подключения для Neon.tech с psycopg3
+            self.conn = psycopg.connect(
                 DATABASE_URL,
-                # SSL для безопасного подключения (требование Neon)
-                sslmode='require',
-                # Keepalive параметры для поддержания соединения
-                keepalives=1,
-                keepalives_idle=30,  # Начинать keepalive после 30 сек простоя
-                keepalives_interval=10,  # Интервал между keepalive пакетами
-                keepalives_count=5,  # Количество попыток keepalive
-                # Таймаут подключения
-                connect_timeout=10
+                autocommit=False
             )
-            self.conn.set_session(autocommit=False)
-            self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+            self.conn.autocommit = False
+            self.cursor = self.conn.cursor(row_factory=dict_row)
             self._last_used = time.time()
             print("✅ База данных подключена (Neon.tech с SSL и keepalive)")
         except Exception as e:
@@ -157,18 +148,13 @@ class Database:
         except:
             pass
         
-        # Создаем новое с теми же параметрами
-        self.conn = psycopg2.connect(
+        # Создаем новое подключение
+        self.conn = psycopg.connect(
             DATABASE_URL,
-            sslmode='require',
-            keepalives=1,
-            keepalives_idle=30,
-            keepalives_interval=10,
-            keepalives_count=5,
-            connect_timeout=10
+            autocommit=False
         )
-        self.conn.set_session(autocommit=False)
-        self.cursor = self.conn.cursor(cursor_factory=RealDictCursor)
+        self.conn.autocommit = False
+        self.cursor = self.conn.cursor(row_factory=dict_row)
         self._last_used = time.time()
         print("✅ Переподключение к БД выполнено")
     
