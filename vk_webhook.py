@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from handlers.vk_integration.vk_oauth import VKOAuth
 from database.database import db
-from loader import bot
 
 app = Flask(__name__)
 
@@ -212,6 +211,7 @@ def vk_callback():
     
     # Отправляем уведомление в Telegram
     try:
+        from loader import bot  # Импортируем только здесь
         bot.send_message(
             telegram_user_id,
             "✅ <b>VK успешно подключен!</b>\n\n"
