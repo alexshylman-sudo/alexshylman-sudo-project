@@ -101,11 +101,10 @@ class Database:
     def __init__(self):
         """Инициализация подключения к БД с keepalive и SSL для Neon.tech"""
         try:
-            # Параметры подключения для Neon.tech с psycopg3
-            self.conn = psycopg.connect(
-                DATABASE_URL,
-                autocommit=False
-            )
+            # Подключение (без autocommit в параметрах для совместимости с psycopg2)
+            self.conn = psycopg.connect(DATABASE_URL)
+            
+            # Устанавливаем autocommit после подключения
             self.conn.autocommit = False
             
             # Создаем cursor в зависимости от версии psycopg
@@ -162,11 +161,8 @@ class Database:
         except:
             pass
         
-        # Создаем новое подключение
-        self.conn = psycopg.connect(
-            DATABASE_URL,
-            autocommit=False
-        )
+        # Создаем новое подключение (без autocommit в параметрах)
+        self.conn = psycopg.connect(DATABASE_URL)
         self.conn.autocommit = False
         
         # Создаем cursor в зависимости от версии psycopg
