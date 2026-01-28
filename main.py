@@ -18,13 +18,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Проверка .env файла
-if not Path(".env").exists():
-    print("❌ Файл .env не найден!")
-    print("📝 Создайте файл .env с необходимыми переменными")
-    sys.exit(1)
-
-load_dotenv()
+# Проверка .env файла (опционально для локальной разработки)
+env_path = Path(".env")
+if env_path.exists():
+    load_dotenv()
+    print("✅ .env файл загружен")
+else:
+    print("ℹ️ .env файл не найден, используются переменные окружения из системы")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN or BOT_TOKEN.startswith("your_"):
