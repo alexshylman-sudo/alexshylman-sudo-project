@@ -405,7 +405,13 @@ def pinterest_callback():
             WHERE id = %s
         """, (json.dumps(connections), user_id))
         db.conn.commit()
-        db.close()  # Закрываем соединение
+        
+        # Закрываем соединение
+        try:
+            db.cursor.close()
+            db.conn.close()
+        except:
+            pass
         
         print("✅ Pinterest connected successfully!")
         print("=" * 60)
@@ -425,7 +431,8 @@ def pinterest_callback():
         # Закрываем соединение при ошибке
         try:
             if db:
-                db.close()
+                db.cursor.close()
+                db.conn.close()
         except:
             pass
         
@@ -719,7 +726,13 @@ def vk_callback():
         """, (json.dumps(platform_connections), telegram_user_id))
         
         db.conn.commit()
-        db.close()  # Закрываем соединение
+        
+        # Закрываем соединение
+        try:
+            db.cursor.close()
+            db.conn.close()
+        except:
+            pass
         
         print(f"✅ VK подключен для пользователя {telegram_user_id}")
         print(f"   VK ID: {vk_user_id}")
@@ -748,7 +761,8 @@ def vk_callback():
         # Закрываем соединение при ошибке
         try:
             if db:
-                db.close()
+                db.cursor.close()
+                db.conn.close()
         except:
             pass
         
