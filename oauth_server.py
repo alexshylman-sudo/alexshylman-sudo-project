@@ -388,7 +388,7 @@ def pinterest_callback():
         
         # Проверяем что этот Pinterest аккаунт не подключен ни у кого (в ЛЮБОЙ БД)
         db.cursor.execute("""
-            SELECT u.id, u.telegram_id, u.username
+            SELECT u.id, u.username
             FROM users u
             WHERE u.platform_connections::text LIKE %s
         """, (f'%"username": "{pinterest_username}"%',))
@@ -398,10 +398,10 @@ def pinterest_callback():
         if existing_users:
             # Pinterest уже подключен у кого-то (возможно у текущего пользователя)
             for existing_user in existing_users:
-                existing_telegram_id = existing_user.get('telegram_id') if isinstance(existing_user, dict) else existing_user[1]
-                existing_username = existing_user.get('username') if isinstance(existing_user, dict) else (existing_user[2] if len(existing_user) > 2 else 'Unknown')
+                existing_user_id = existing_user.get('id') if isinstance(existing_user, dict) else existing_user[0]
+                existing_username = existing_user.get('username') if isinstance(existing_user, dict) else (existing_user[1] if len(existing_user) > 1 else 'Unknown')
                 
-                if existing_telegram_id == user_id:
+                if existing_user_id == user_id:
                     # Текущий пользователь уже подключил этот Pinterest
                     print(f"❌ Pinterest @{pinterest_username} уже подключен у пользователя {user_id}")
                     
@@ -419,7 +419,7 @@ def pinterest_callback():
                     )
                 else:
                     # Другой пользователь уже подключил этот Pinterest
-                    print(f"❌ Pinterest @{pinterest_username} уже подключен у другого пользователя (ID: {existing_telegram_id})")
+                    print(f"❌ Pinterest @{pinterest_username} уже подключен у другого пользователя (ID: {existing_user_id})")
                     
                     # Закрываем БД
                     try:

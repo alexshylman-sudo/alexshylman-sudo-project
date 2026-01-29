@@ -266,7 +266,7 @@ class VKOAuth:
             
             # Проверяем что этот VK аккаунт не подключен ни у кого
             db.cursor.execute("""
-                SELECT u.id, u.telegram_id, u.username
+                SELECT u.id, u.username
                 FROM users u
                 WHERE u.platform_connections::text LIKE %s
             """, (f'%"user_id": "{vk_user_id}"%',))
@@ -275,11 +275,11 @@ class VKOAuth:
             
             if existing_users:
                 for existing_user in existing_users:
-                    existing_telegram_id = existing_user.get('telegram_id') if isinstance(existing_user, dict) else existing_user[1]
+                    existing_user_id = existing_user.get('id') if isinstance(existing_user, dict) else existing_user[0]
                     
-                    if existing_telegram_id != telegram_user_id:
+                    if existing_user_id != telegram_user_id:
                         # VK уже подключен у другого пользователя
-                        print(f"❌ VK ID {vk_user_id} уже подключен у другого пользователя (Telegram ID: {existing_telegram_id})")
+                        print(f"❌ VK ID {vk_user_id} уже подключен у другого пользователя (ID: {existing_user_id})")
                         return False
             
             # ============================================
