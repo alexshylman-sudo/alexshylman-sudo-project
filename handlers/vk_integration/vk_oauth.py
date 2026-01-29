@@ -64,13 +64,14 @@ class VKOAuth:
                     print(f"❌ VK OAuth error: {result.get('error_description', result['error'])}")
                     return None
                 
-                # VK ID возвращает: {access_token, refresh_token, user_id, expires_in, email}
+                # VK ID возвращает: {access_token, refresh_token, user_id, expires_in, email, device_id}
                 return {
                     'access_token': result.get('access_token'),
                     'refresh_token': result.get('refresh_token'),
                     'user_id': result.get('user_id'),
                     'expires_in': result.get('expires_in'),  # секунды до истечения
-                    'email': result.get('email')
+                    'email': result.get('email'),
+                    'device_id': device_id  # ВАЖНО для обновления токена!
                 }
             else:
                 print(f"❌ VK OAuth HTTP error: {response.status_code} - {response.text}")
@@ -235,8 +236,9 @@ class VKOAuth:
             vk_connection = {
                 'user_id': vk_data['user_id'],
                 'access_token': vk_data['access_token'],
-                'refresh_token': vk_data.get('refresh_token'),  # НОВОЕ
-                'expires_at': expires_at,  # НОВОЕ - timestamp когда истечёт
+                'refresh_token': vk_data.get('refresh_token'),
+                'device_id': vk_data.get('device_id'),  # КРИТИЧНО для обновления!
+                'expires_at': expires_at,
                 'email': vk_data.get('email'),
                 'first_name': vk_user_info.get('first_name'),
                 'last_name': vk_user_info.get('last_name'),
@@ -345,13 +347,17 @@ class VKOAuth:
                 print(f"🔄 Токен истёк или истекает скоро. Обновляем...")
                 
                 refresh_token = vk_connection.get('refresh_token')
+                device_id = vk_connection.get('device_id')  # КРИТИЧНО!
                 
                 if not refresh_token:
                     print(f"❌ Нет refresh_token. Нужно переподключить VK")
                     return None
                 
-                # Обновляем токен
-                new_tokens = VKOAuth.refresh_access_token(refresh_token)
+                if not device_id:
+                    print(f"⚠️ Нет device_id. Попытка обновить без него...")
+                
+                # Обновляем токен с device_id
+                new_tokens = VKOAuth.refresh_access_token(refresh_token, device_id)
                 
                 if not new_tokens:
                     print(f"❌ Не удалось обновить токен")
