@@ -209,7 +209,10 @@ def vk_callback():
     
     if not success:
         print(f"❌ Не удалось сохранить VK подключение")
-        return render_template_string(ERROR_PAGE, error_message="Ошибка сохранения данных")
+        return render_template_string(
+            ERROR_PAGE, 
+            error_message="Этот VK аккаунт уже подключен (у вас или у другого пользователя)"
+        )
     
     # Отправляем уведомление и показываем подключения
     try:

@@ -258,18 +258,42 @@ class VKOAuth:
             if not isinstance(vks, list):
                 vks = []
             
-            # Проверяем не подключен ли уже этот VK аккаунт
+            # ============================================
+            # ПРОВЕРКА ГЛОБАЛЬНОЙ УНИКАЛЬНОСТИ VK
+            # ============================================
+            
+            vk_user_id = vk_data['user_id']
+            
+            # Проверяем что этот VK аккаунт не подключен ни у кого
+            db.cursor.execute("""
+                SELECT u.id, u.telegram_id, u.username
+                FROM users u
+                WHERE u.platform_connections::text LIKE %s
+            """, (f'%"user_id": "{vk_user_id}"%',))
+            
+            existing_users = db.cursor.fetchall()
+            
+            if existing_users:
+                for existing_user in existing_users:
+                    existing_telegram_id = existing_user.get('telegram_id') if isinstance(existing_user, dict) else existing_user[1]
+                    
+                    if existing_telegram_id != telegram_user_id:
+                        # VK уже подключен у другого пользователя
+                        print(f"❌ VK ID {vk_user_id} уже подключен у другого пользователя (Telegram ID: {existing_telegram_id})")
+                        return False
+            
+            # ============================================
+            
+            # Проверяем не подключен ли уже этот VK аккаунт у ТЕКУЩЕГО пользователя
             existing_index = None
             for i, existing_vk in enumerate(vks):
                 if existing_vk.get('user_id') == vk_data['user_id']:
-                    existing_index = i
-                    break
+                    # VK уже подключен у текущего пользователя - запрещаем
+                    print(f"❌ VK ID {vk_user_id} уже подключен у пользователя {telegram_user_id}")
+                    return False
             
-            # Обновляем или добавляем
-            if existing_index is not None:
-                vks[existing_index] = vk_connection
-            else:
-                vks.append(vk_connection)
+            # VK не подключен - добавляем
+            vks.append(vk_connection)
             
             platform_connections['vks'] = vks
             

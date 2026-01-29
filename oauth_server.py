@@ -46,7 +46,7 @@ SUCCESS_PAGE = """
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #E60023 0%, #c9001f 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             margin: 0;
             padding: 20px;
             min-height: 100vh;
@@ -67,7 +67,7 @@ SUCCESS_PAGE = """
             margin-bottom: 20px;
         }
         h1 {
-            color: #E60023;
+            color: #059669;
             margin: 0 0 10px 0;
             font-size: 28px;
         }
@@ -89,7 +89,7 @@ SUCCESS_PAGE = """
         }
         .button {
             display: inline-block;
-            background: #E60023;
+            background: #10b981;
             color: white;
             padding: 15px 30px;
             border-radius: 25px;
@@ -99,7 +99,7 @@ SUCCESS_PAGE = """
             transition: background 0.3s;
         }
         .button:hover {
-            background: #c9001f;
+            background: #059669;
         }
     </style>
 </head>
@@ -177,7 +177,7 @@ ERROR_PAGE = """
         }
         .button {
             display: inline-block;
-            background: #E60023;
+            background: #10b981;
             color: white;
             padding: 15px 30px;
             border-radius: 25px;
@@ -187,7 +187,7 @@ ERROR_PAGE = """
             transition: background 0.3s;
         }
         .button:hover {
-            background: #c9001f;
+            background: #059669;
         }
     </style>
 </head>
@@ -239,7 +239,7 @@ def index():
                 margin: 0 auto;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
-            h1 { color: #E60023; }
+            h1 { color: #10b981; }
             .status { color: #00c853; font-size: 24px; margin: 20px 0; }
         </style>
     </head>
@@ -382,6 +382,62 @@ def pinterest_callback():
         if '_pinterest_oauth_state' in connections:
             del connections['_pinterest_oauth_state']
         
+        # ============================================
+        # ПРОВЕРКА ГЛОБАЛЬНОЙ УНИКАЛЬНОСТИ PINTEREST
+        # ============================================
+        
+        # Проверяем что этот Pinterest аккаунт не подключен ни у кого (в ЛЮБОЙ БД)
+        db.cursor.execute("""
+            SELECT u.id, u.telegram_id, u.username
+            FROM users u
+            WHERE u.platform_connections::text LIKE %s
+        """, (f'%"username": "{pinterest_username}"%',))
+        
+        existing_users = db.cursor.fetchall()
+        
+        if existing_users:
+            # Pinterest уже подключен у кого-то (возможно у текущего пользователя)
+            for existing_user in existing_users:
+                existing_telegram_id = existing_user.get('telegram_id') if isinstance(existing_user, dict) else existing_user[1]
+                existing_username = existing_user.get('username') if isinstance(existing_user, dict) else (existing_user[2] if len(existing_user) > 2 else 'Unknown')
+                
+                if existing_telegram_id == user_id:
+                    # Текущий пользователь уже подключил этот Pinterest
+                    print(f"❌ Pinterest @{pinterest_username} уже подключен у пользователя {user_id}")
+                    
+                    # Закрываем БД
+                    try:
+                        db.cursor.close()
+                        db.conn.close()
+                    except:
+                        pass
+                    
+                    return render_template_string(
+                        ERROR_PAGE,
+                        error=f"Аккаунт @{pinterest_username} уже подключен к вашему боту",
+                        bot_username=bot_username
+                    )
+                else:
+                    # Другой пользователь уже подключил этот Pinterest
+                    print(f"❌ Pinterest @{pinterest_username} уже подключен у другого пользователя (ID: {existing_telegram_id})")
+                    
+                    # Закрываем БД
+                    try:
+                        db.cursor.close()
+                        db.conn.close()
+                    except:
+                        pass
+                    
+                    return render_template_string(
+                        ERROR_PAGE,
+                        error=f"Аккаунт @{pinterest_username} уже используется другим пользователем",
+                        bot_username=bot_username
+                    )
+        
+        # ============================================
+        # Уникальность подтверждена - сохраняем
+        # ============================================
+        
         # Сохраняем Pinterest подключение
         if 'pinterests' not in connections:
             connections['pinterests'] = []
@@ -412,6 +468,40 @@ def pinterest_callback():
             db.conn.close()
         except:
             pass
+        
+        # Отправляем уведомление и меню подключений в Telegram
+        try:
+            from loader import bot
+            from handlers.platform_connections.main_menu import show_connections_menu
+            from telebot import types
+            
+            # Создаём фейковое сообщение для show_connections_menu
+            class FakeMessage:
+                def __init__(self, chat_id):
+                    self.chat = types.Chat(chat_id, 'private')
+                    self.message_id = 0
+            
+            class FakeCall:
+                def __init__(self, user_id):
+                    self.from_user = types.User(user_id, False, 'User')
+                    self.message = FakeMessage(user_id)
+                    self.id = 0
+            
+            fake_call = FakeCall(user_id)
+            
+            # Отправляем уведомление
+            bot.send_message(
+                user_id,
+                "✅ <b>Pinterest успешно подключен!</b>\n\n"
+                f"Аккаунт @{pinterest_username} готов к работе.",
+                parse_mode='HTML'
+            )
+            
+            # Показываем меню подключений
+            show_connections_menu(fake_call)
+            
+        except Exception as e:
+            print(f"⚠️ Не удалось отправить уведомление в Telegram: {e}")
         
         print("✅ Pinterest connected successfully!")
         print("=" * 60)
