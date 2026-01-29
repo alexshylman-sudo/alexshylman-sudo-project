@@ -10,6 +10,7 @@ import secrets
 # VK Application credentials
 VK_APP_ID = os.getenv("VK_APP_ID", "5354809")  # Standalone приложение "Хроники героя"
 VK_APP_SECRET = os.getenv("VK_APP_SECRET", "")  # Сервисный ключ из настроек
+VK_ACCESS_TOKEN = os.getenv("VK_ACCESS_TOKEN", "")  # Прямой токен (если OAuth недоступен)
 
 # Redirect URI для OAuth callback
 VK_REDIRECT_URI = "https://alexshylman-sudo-project.onrender.com/vk_callback"
