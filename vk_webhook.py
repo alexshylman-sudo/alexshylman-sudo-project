@@ -5,6 +5,7 @@ Flask Webhook для обработки VK OAuth callback
 from flask import Flask, request, redirect, render_template_string
 import os
 import sys
+import json
 
 # Добавляем корневую директорию в путь
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -204,57 +205,175 @@ def vk_callback():
     print(f"   User ID: {token_data.get('user_id')}")
     print(f"   Email: {token_data.get('email', 'не предоставлен')}")
     
-    # Сохраняем подключение в БД
-    success = vk_oauth.save_vk_connection(db, telegram_user_id, token_data)
+    # Получаем список групп где пользователь админ
+    user_groups = vk_oauth.get_user_groups(token_data['access_token'])
     
-    if not success:
-        print(f"❌ Не удалось сохранить VK подключение")
-        return render_template_string(
-            ERROR_PAGE, 
-            error_message="Этот VK аккаунт уже подключен (у вас или у другого пользователя)"
-        )
+    print(f"📝 Доступно групп для подключения: {len(user_groups)}")
     
-    # Отправляем уведомление
+    # ============================================
+    # СОХРАНЯЕМ ВРЕМЕННЫЕ ДАННЫЕ ДЛЯ ВЫБОРА
+    # ============================================
+    
+    # Сохраняем токен и группы во временное хранилище для выбора
+    vk_selection_data = {
+        'access_token': token_data['access_token'],
+        'refresh_token': token_data.get('refresh_token'),
+        'device_id': token_data.get('device_id'),
+        'expires_in': token_data.get('expires_in'),
+        'user_id': token_data['user_id'],
+        'email': token_data.get('email'),
+        'available_groups': user_groups
+    }
+    
+    # Сохраняем во временное поле в platform_connections
+    user = db.get_user(telegram_user_id)
+    connections = user.get('platform_connections', {})
+    if isinstance(connections, str):
+        connections = json.loads(connections)
+    
+    connections['_vk_selection_pending'] = vk_selection_data
+    
+    db.cursor.execute("""
+        UPDATE users
+        SET platform_connections = %s::jsonb
+        WHERE id = %s
+    """, (json.dumps(connections), telegram_user_id))
+    db.conn.commit()
+    
+    # ============================================
+    # ОТПРАВЛЯЕМ TELEGRAM СООБЩЕНИЕ С ВЫБОРОМ
+    # ============================================
+    
     try:
         import os
-        import requests
+        import requests as req
         
         BOT_TOKEN = os.getenv('BOT_TOKEN')
         
-        if not BOT_TOKEN:
-            print("⚠️ BOT_TOKEN not set - skip Telegram notification")
-        else:
-            # Отправляем уведомление через прямой API
+        if BOT_TOKEN:
             telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
             
+            # Получаем информацию о пользователе VK
+            vk_user_info = vk_oauth.get_user_info(token_data['access_token'], token_data['user_id'])
+            user_name = f"{vk_user_info.get('first_name', '')} {vk_user_info.get('last_name', '')}".strip() if vk_user_info else "Личная страница"
+            
+            # Формируем текст сообщения
             message_text = (
-                "✅ <b>VK успешно подключен!</b>\n\n"
-                "Теперь вы можете публиковать посты в ВКонтакте.\n\n"
-                "Откройте 'МОИ ПОДКЛЮЧЕНИЯ' чтобы увидеть все площадки."
+                "✅ <b>VK авторизация успешна!</b>\n\n"
+                "Выберите что хотите подключить:\n\n"
             )
             
-            response = requests.post(
+            # Формируем inline кнопки
+            inline_keyboard = []
+            
+            # Кнопка для личной страницы
+            inline_keyboard.append([{
+                'text': f"👤 {user_name}",
+                'callback_data': f"vk_select_user_{telegram_user_id}"
+            }])
+            
+            # Кнопки для групп
+            for idx, group in enumerate(user_groups[:10]):  # Максимум 10 групп
+                group_name = group['name']
+                members = group.get('members_count', 0)
+                members_text = f" ({members:,} подписчиков)" if members > 0 else ""
+                
+                inline_keyboard.append([{
+                    'text': f"📝 {group_name}{members_text}",
+                    'callback_data': f"vk_select_group_{telegram_user_id}_{idx}"
+                }])
+            
+            # Кнопка отмены
+            inline_keyboard.append([{
+                'text': "❌ Отмена",
+                'callback_data': f"vk_select_cancel_{telegram_user_id}"
+            }])
+            
+            response = req.post(
                 telegram_api_url,
                 json={
                     'chat_id': telegram_user_id,
                     'text': message_text,
-                    'parse_mode': 'HTML'
+                    'parse_mode': 'HTML',
+                    'reply_markup': {
+                        'inline_keyboard': inline_keyboard
+                    }
                 },
                 timeout=10
             )
             
             if response.status_code == 200:
-                print(f"✅ Telegram notification sent to user {telegram_user_id}")
+                print(f"✅ Telegram selection menu sent to user {telegram_user_id}")
             else:
                 print(f"⚠️ Telegram notification failed: {response.status_code}")
-        
+                
     except Exception as e:
-        print(f"⚠️ Не удалось отправить уведомление в Telegram: {e}")
+        print(f"⚠️ Не удалось отправить меню выбора в Telegram: {e}")
         import traceback
         traceback.print_exc()
     
-    # Показываем страницу успеха
-    return render_template_string(SUCCESS_PAGE)
+    # Показываем страницу успеха с инструкцией
+    return render_template_string("""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK - Выберите что подключить</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4680C2 0%, #5181B8 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 400px;
+        }
+        .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #4680C2;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: #4680C2;
+            color: white;
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">✅</div>
+        <h1>Авторизация успешна!</h1>
+        <p>Вернитесь в Telegram и выберите что хотите подключить:</p>
+        <p>👤 Личную страницу<br>или<br>📝 Группы где вы админ</p>
+        <a href="https://t.me/best_seo_master_bot" class="button">Вернуться в бота</a>
+    </div>
+</body>
+</html>
+    """)
 
 
 @app.route('/health')

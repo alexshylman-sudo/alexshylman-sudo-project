@@ -13,6 +13,7 @@ from . import pinterest
 from . import telegram
 from . import instagram
 from . import vk
+from . import vk_selection  # Обработка выбора VK профиля/группы
 from . import management_websites
 from . import management_social
 

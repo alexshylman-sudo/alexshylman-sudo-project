@@ -18,7 +18,7 @@ VK_REDIRECT_URI = "https://alexshylman-sudo-project.onrender.com/vk_callback"
 VK_API_VERSION = "5.131"
 
 # Права доступа (scope) для VK ID
-VK_OAUTH_SCOPE = "email"
+VK_OAUTH_SCOPE = "email,groups"  # email + доступ к группам где пользователь админ
 
 # URLs - VK ID (новый тип приложений)
 VK_OAUTH_AUTHORIZE_URL = "https://id.vk.com/authorize"

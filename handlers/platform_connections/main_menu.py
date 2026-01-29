@@ -65,7 +65,17 @@ def handle_platform_connections(call):
         text += f"💬 <b>ВКонтакте ({len(vks)}):</b>\n"
         for idx, vk in enumerate(vks, 1):
             group_name = vk.get('group_name', 'Unknown')
-            text += f"   {idx}. {escape_html(group_name)}\n"
+            vk_type = vk.get('type', 'user')
+            
+            # Определяем иконку по типу
+            if vk_type == 'group':
+                icon = "📝"  # Группа
+                members = vk.get('members_count', 0)
+                members_text = f" ({members:,})" if members > 0 else ""
+                text += f"   {idx}. {icon} {escape_html(group_name)}{members_text}\n"
+            else:
+                icon = "👤"  # Личная страница
+                text += f"   {idx}. {icon} {escape_html(group_name)}\n"
         text += "\n"
     
     # Pinterest (только если есть)
@@ -240,8 +250,18 @@ def handle_manage_platforms(call):
         if vks:
             text += f"💬 <b>VK ({len(vks)}):</b>\n"
             for vk in vks:
-                group_id = vk.get('group_id', 'Неизвестная')
-                text += f"   • {group_id}\n"
+                group_name = vk.get('group_name', 'Неизвестная')
+                vk_type = vk.get('type', 'user')
+                
+                # Определяем иконку
+                if vk_type == 'group':
+                    icon = "📝"
+                    members = vk.get('members_count', 0)
+                    members_text = f" ({members:,})" if members > 0 else ""
+                    text += f"   • {icon} {group_name}{members_text}\n"
+                else:
+                    icon = "👤"
+                    text += f"   • {icon} {group_name}\n"
             text += "\n"
             markup.add(
                 types.InlineKeyboardButton(f"💬 VK ({len(vks)})", callback_data="manage_vks")

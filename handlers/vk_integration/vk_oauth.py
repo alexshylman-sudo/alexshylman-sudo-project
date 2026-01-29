@@ -4,7 +4,7 @@ VK OAuth авторизация - основная логика
 """
 import requests
 import json
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from .vk_config import (
     VK_APP_ID, VK_APP_SECRET, VK_REDIRECT_URI, 
     VK_API_VERSION, VK_OAUTH_TOKEN_URL, VK_API_BASE_URL
@@ -195,6 +195,77 @@ class VKOAuth:
         except Exception as e:
             print(f"❌ VK API exception: {e}")
             return None
+    
+    @staticmethod
+    def get_user_groups(access_token: str) -> List[Dict]:
+        """
+        Получает список групп где пользователь является администратором или редактором
+        
+        Args:
+            access_token: VK access token
+            
+        Returns:
+            list: [
+                {
+                    'id': 123456,
+                    'name': 'Название группы',
+                    'screen_name': 'group_url',
+                    'photo_200': 'https://...',
+                    'members_count': 1000
+                },
+                ...
+            ]
+        """
+        try:
+            print(f"🔄 Запрос групп где пользователь админ...")
+            
+            response = requests.get(
+                f"{VK_API_BASE_URL}/groups.get",
+                params={
+                    "access_token": access_token,
+                    "filter": "admin,editor",  # Только где админ или редактор
+                    "extended": 1,              # С подробной информацией
+                    "fields": "members_count",  # Количество участников
+                    "v": VK_API_VERSION
+                },
+                timeout=10
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ VK groups API HTTP error: {response.status_code}")
+                return []
+            
+            result = response.json()
+            
+            if 'error' in result:
+                print(f"❌ VK groups API error: {result['error'].get('error_msg', 'Unknown error')}")
+                return []
+            
+            if 'response' not in result or 'items' not in result['response']:
+                print(f"⚠️ Нет групп в ответе VK API")
+                return []
+            
+            groups = result['response']['items']
+            print(f"✅ Найдено групп: {len(groups)}")
+            
+            # Форматируем данные
+            formatted_groups = []
+            for group in groups:
+                formatted_groups.append({
+                    'id': group.get('id'),
+                    'name': group.get('name', 'Без названия'),
+                    'screen_name': group.get('screen_name', ''),
+                    'photo_200': group.get('photo_200', ''),
+                    'members_count': group.get('members_count', 0)
+                })
+            
+            return formatted_groups
+            
+        except Exception as e:
+            print(f"❌ VK groups exception: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
     
     @staticmethod
     def save_vk_connection(db, telegram_user_id: int, vk_data: Dict) -> bool:

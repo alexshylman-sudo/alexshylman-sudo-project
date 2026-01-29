@@ -162,16 +162,30 @@ def publish_vk_directly(call, user_id, bot_id, platform_id, category_id, cost):
             )
             return
         
-        # Получаем VK подключение для owner_id (для ссылки на пост)
+        # Получаем VK подключение (личная страница или группа)
         user = db.get_user(user_id)
         connections = user.get('platform_connections', {})
         vks = connections.get('vks', [])
         
         vk_connection = None
+        
+        # Ищем подключение по platform_id
+        # platform_id может быть:
+        # - user_id для личной страницы
+        # - group_id для группы (отрицательный)
         for vk in vks:
-            if str(vk.get('user_id')) == str(platform_id):
-                vk_connection = vk
-                break
+            vk_type = vk.get('type', 'user')
+            
+            if vk_type == 'user':
+                # Личная страница
+                if str(vk.get('user_id')) == str(platform_id):
+                    vk_connection = vk
+                    break
+            elif vk_type == 'group':
+                # Группа (сравниваем с group_id)
+                if str(vk.get('group_id')) == str(platform_id):
+                    vk_connection = vk
+                    break
         
         if not vk_connection:
             progress.finish()
@@ -233,16 +247,34 @@ def publish_vk_directly(call, user_id, bot_id, platform_id, category_id, cost):
             photo_data = save_result['response'][0]
             photo_attachment = f"photo{photo_data['owner_id']}_{photo_data['id']}"
             
+            # Определяем owner_id и from_group в зависимости от типа
+            vk_type = vk_connection.get('type', 'user')
+            
+            if vk_type == 'group':
+                # Для группы
+                owner_id = vk_connection.get('group_id')  # Уже отрицательный
+                from_group = 1  # Публикация от имени группы
+            else:
+                # Для личной страницы
+                owner_id = vk_connection.get('user_id')
+                from_group = 0  # Публикация от имени пользователя
+            
             # Шаг 4: Публикуем пост
+            post_params = {
+                "access_token": access_token,
+                "v": "5.131",
+                "message": post_text,
+                "attachments": photo_attachment,
+                "from_group": from_group
+            }
+            
+            # Добавляем owner_id только для групп
+            if vk_type == 'group':
+                post_params["owner_id"] = owner_id
+            
             post_response = requests.get(
                 "https://api.vk.com/method/wall.post",
-                params={
-                    "access_token": access_token,
-                    "v": "5.131",
-                    "message": post_text,
-                    "attachments": photo_attachment,
-                    "from_group": 0
-                },
+                params=post_params,
                 timeout=10
             )
             
@@ -252,7 +284,7 @@ def publish_vk_directly(call, user_id, bot_id, platform_id, category_id, cost):
                 raise Exception(post_result_vk['error'].get('error_msg', 'VK post error'))
             
             post_id = post_result_vk['response']['post_id']
-            owner_id = vk_connection.get('user_id')
+            # owner_id уже определен выше
             post_url = f"https://vk.com/wall{owner_id}_{post_id}"
             
             # Успех!

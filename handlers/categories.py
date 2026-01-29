@@ -419,9 +419,17 @@ def handle_open_category(call):
     verified_vk = [v for v in connections.get('vks', []) if v.get('status') == 'active']
     for vk in verified_vk:
         group_name = vk.get('group_name', 'ВКонтакте')
-        vk_id = str(vk.get('user_id', ''))
+        vk_type = vk.get('type', 'user')
         
-        # Проверка подключения (новая структура: [{'id': 'user_id'}])
+        # Определяем ID в зависимости от типа
+        if vk_type == 'group':
+            vk_id = str(vk.get('group_id', ''))  # Для группы
+            icon_prefix = "📝"  # Иконка группы
+        else:
+            vk_id = str(vk.get('user_id', ''))   # Для личной страницы
+            icon_prefix = "👤"  # Иконка личной страницы
+        
+        # Проверка подключения (новая структура: [{'id': 'user_id или group_id'}])
         vk_list = bot_connections.get('vk', [])
         is_connected = False
         for item in vk_list:
@@ -432,11 +440,11 @@ def handle_open_category(call):
                 is_connected = True
                 break
         
-        icon = "🟢" if is_connected else "❌"
+        status_icon = "🟢" if is_connected else "❌"
         
         markup.add(
             types.InlineKeyboardButton(
-                f"{icon} VK: {group_name}",
+                f"{status_icon} {icon_prefix} {group_name}",
                 callback_data=f"platform_menu_{category_id}_{bot_id}_vk_{vk_id}"
             )
         )
