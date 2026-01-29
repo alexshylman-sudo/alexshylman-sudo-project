@@ -503,8 +503,6 @@ def pinterest_callback():
         
         # Отправляем уведомление и меню подключений в Telegram
         try:
-            import requests
-            
             BOT_TOKEN = os.getenv('BOT_TOKEN')
             
             if not BOT_TOKEN:
