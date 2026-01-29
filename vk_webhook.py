@@ -390,10 +390,6 @@ def vk_callback():
 </body>
 </html>
     """)
-        except:
-            pass
-        
-        return render_template_string(ERROR_PAGE, error_message=str(e))
 
 
 @app.route('/health')
@@ -421,3 +417,4 @@ if __name__ == '__main__':
 
 
 print("✅ VK Webhook Server готов к запуску")
+"" 
