@@ -17,45 +17,31 @@ class VKOAuth:
     @staticmethod
     def exchange_code_for_token(code: str, code_verifier: str = None, device_id: str = None) -> Optional[Dict]:
         """
-        Обменивает authorization code на access token (VK ID с PKCE)
+        Обменивает authorization code на access token (старый VK OAuth)
         
         Args:
             code: Authorization code от VK
-            code_verifier: PKCE code_verifier
-            device_id: Device ID от VK (обязателен для VK ID)
+            code_verifier: (не используется в старом OAuth)
+            device_id: (не используется в старом OAuth)
             
         Returns:
             dict: {'access_token': '...', 'user_id': 123, 'email': '...'}
             или None если ошибка
         """
         try:
-            # VK ID требует POST запрос
-            data = {
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": VK_REDIRECT_URI,
-                "client_id": VK_APP_ID,
-                "code_verifier": code_verifier
-            }
-            
-            # Добавляем device_id если есть (обязательно для VK ID)
-            if device_id:
-                data["device_id"] = device_id
-            
-            # Device ID для VK ID
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
-            
-            response = requests.post(
+            # Старый OAuth использует GET запрос с простыми параметрами
+            response = requests.get(
                 VK_OAUTH_TOKEN_URL,
-                data=data,
-                headers=headers,
+                params={
+                    "client_id": VK_APP_ID,
+                    "client_secret": VK_APP_SECRET,
+                    "redirect_uri": VK_REDIRECT_URI,
+                    "code": code
+                },
                 timeout=10
             )
             
             print(f"📡 VK Token Response: {response.status_code}")
-            print(f"📄 Response body: {response.text}")
             
             if response.status_code == 200:
                 result = response.json()
@@ -64,14 +50,15 @@ class VKOAuth:
                     print(f"❌ VK OAuth error: {result.get('error_description', result['error'])}")
                     return None
                 
-                # VK ID возвращает: {access_token, refresh_token, user_id, expires_in, email, device_id}
+                # Старый OAuth возвращает: {access_token, user_id, email, expires_in}
+                # refresh_token не возвращается (токен живёт долго с scope offline)
                 return {
                     'access_token': result.get('access_token'),
-                    'refresh_token': result.get('refresh_token'),
-                    'user_id': result.get('user_id'),
-                    'expires_in': result.get('expires_in'),  # секунды до истечения
+                    'refresh_token': None,  # Старый OAuth не даёт refresh_token
+                    'user_id': str(result.get('user_id')),  # Конвертируем в строку
+                    'expires_in': result.get('expires_in', 0),  # 0 = бессрочный с offline scope
                     'email': result.get('email'),
-                    'device_id': device_id  # ВАЖНО для обновления токена!
+                    'device_id': None
                 }
             else:
                 print(f"❌ VK OAuth HTTP error: {response.status_code} - {response.text}")

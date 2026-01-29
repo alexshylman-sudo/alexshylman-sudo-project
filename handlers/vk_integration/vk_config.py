@@ -17,12 +17,13 @@ VK_REDIRECT_URI = "https://alexshylman-sudo-project.onrender.com/vk_callback"
 # VK API версия
 VK_API_VERSION = "5.131"
 
-# Права доступа (scope) для VK ID
-VK_OAUTH_SCOPE = "email,groups"  # email + доступ к группам где пользователь админ
+# Права доступа (scope) для VK OAuth
+# Старый OAuth API (полный доступ к wall, photos, groups)
+VK_OAUTH_SCOPE = "wall,photos,groups,offline"  # offline = долгоживущий токен
 
-# URLs - VK ID (новый тип приложений)
-VK_OAUTH_AUTHORIZE_URL = "https://id.vk.com/authorize"
-VK_OAUTH_TOKEN_URL = "https://id.vk.com/oauth2/auth"
+# URLs - VK OAuth (старый, полный API)
+VK_OAUTH_AUTHORIZE_URL = "https://oauth.vk.com/authorize"
+VK_OAUTH_TOKEN_URL = "https://oauth.vk.com/access_token"
 VK_API_BASE_URL = "https://api.vk.com/method"
 
 # Временное хранилище для PKCE verifiers
@@ -49,7 +50,7 @@ def generate_pkce_pair():
 
 def get_vk_auth_url(telegram_user_id: int) -> str:
     """
-    Генерирует URL для авторизации через VK ID с PKCE
+    Генерирует URL для авторизации через VK OAuth (старый API)
     
     Args:
         telegram_user_id: ID пользователя в Telegram
@@ -59,31 +60,7 @@ def get_vk_auth_url(telegram_user_id: int) -> str:
     """
     state = f"tg_{telegram_user_id}"
     
-    # Генерируем PKCE пару
-    code_verifier, code_challenge = generate_pkce_pair()
-    
-    # Сохраняем verifier в БД для межпроцессного доступа
-    try:
-        from database.database import Database
-        db = Database()
-        
-        db.cursor.execute("""
-            INSERT INTO vk_pkce_sessions (telegram_user_id, code_verifier, created_at)
-            VALUES (%s, %s, NOW())
-            ON CONFLICT (telegram_user_id) 
-            DO UPDATE SET code_verifier = EXCLUDED.code_verifier, created_at = NOW()
-        """, (telegram_user_id, code_verifier))
-        db.conn.commit()
-        
-        # Закрываем подключение
-        db.cursor.close()
-        db.conn.close()
-        
-    except Exception as e:
-        print(f"⚠️ Ошибка сохранения PKCE: {e}")
-        # Fallback на in-memory storage
-        _pkce_storage[telegram_user_id] = code_verifier
-    
+    # Старый OAuth не требует PKCE - просто возвращаем URL
     return (
         f"{VK_OAUTH_AUTHORIZE_URL}"
         f"?client_id={VK_APP_ID}"
@@ -91,9 +68,8 @@ def get_vk_auth_url(telegram_user_id: int) -> str:
         f"&response_type=code"
         f"&scope={VK_OAUTH_SCOPE}"
         f"&state={state}"
-        f"&code_challenge={code_challenge}"
-        f"&code_challenge_method=s256"
-        f"&display=mobile"
+        f"&v={VK_API_VERSION}"
+        f"&display=page"
     )
 
 
