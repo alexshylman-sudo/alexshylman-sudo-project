@@ -213,8 +213,23 @@ def vk_callback():
     
     # Отправляем уведомление и показываем подключения
     try:
-        from loader import bot  # Импортируем только здесь
+        from loader import bot
         from handlers.platform_connections.main_menu import show_connections_menu
+        from telebot import types
+        
+        # Создаём фейковое сообщение для show_connections_menu
+        class FakeMessage:
+            def __init__(self, chat_id):
+                self.chat = types.Chat(chat_id, 'private')
+                self.message_id = 0
+        
+        class FakeCall:
+            def __init__(self, user_id):
+                self.from_user = types.User(user_id, False, 'User')
+                self.message = FakeMessage(user_id)
+                self.id = 0
+        
+        fake_call = FakeCall(telegram_user_id)
         
         # Отправляем уведомление
         bot.send_message(
@@ -225,95 +240,7 @@ def vk_callback():
         )
         
         # Показываем меню подключений
-        from telebot import types
-        
-        # Создаём фейковый callback для вызова функции
-        class FakeCall:
-            def __init__(self, user_id):
-                self.from_user = types.User(user_id, False, 'User')
-                self.message = None
-                self.id = 0
-        
-        fake_call = FakeCall(telegram_user_id)
-        
-        # Получаем все подключения
-        user = db.get_user(telegram_user_id)
-        connections = user.get('platform_connections', {})
-        
-        if not isinstance(connections, dict):
-            connections = {}
-        
-        # Считаем подключения
-        websites = connections.get('websites', [])
-        instagrams = connections.get('instagrams', [])
-        vks = connections.get('vks', [])
-        pinterests = connections.get('pinterests', [])
-        telegrams = connections.get('telegrams', [])
-        
-        text = (
-            "🔌 <b>МОИ ПОДКЛЮЧЕНИЯ</b>\n"
-            "━━━━━━━━━━━━━━\n\n"
-            "Управляйте подключениями к внешним площадкам:\n\n"
-        )
-        
-        has_connections = False
-        
-        if websites:
-            has_connections = True
-            text += f"🌐 <b>Сайты ({len(websites)}):</b>\n"
-            for idx, site in enumerate(websites, 1):
-                url = site.get('url', 'Unknown')
-                try:
-                    from urllib.parse import urlparse
-                    domain = urlparse(url).netloc or url
-                    text += f"   {idx}. {domain}\n"
-                except:
-                    text += f"   {idx}. {url}\n"
-            text += "\n"
-        
-        if vks:
-            has_connections = True
-            text += f"💬 <b>ВКонтакте ({len(vks)}):</b>\n"
-            for idx, vk in enumerate(vks, 1):
-                group_name = vk.get('group_name', 'Unknown')
-                text += f"   {idx}. {group_name}\n"
-            text += "\n"
-        
-        if pinterests:
-            has_connections = True
-            text += f"📌 <b>Pinterest ({len(pinterests)}):</b>\n"
-            for idx, pin in enumerate(pinterests, 1):
-                board = pin.get('board', 'Unknown')
-                text += f"   {idx}. {board}\n"
-            text += "\n"
-        
-        if telegrams:
-            has_connections = True
-            text += f"✈️ <b>Telegram ({len(telegrams)}):</b>\n"
-            for idx, tg in enumerate(telegrams, 1):
-                channel = tg.get('channel', 'Unknown')
-                text += f"   {idx}. @{channel}\n"
-            text += "\n"
-        
-        if not has_connections:
-            text += "У вас пока нет подключенных площадок.\n\n"
-        
-        text += "━━━━━━━━━━━━━━\n\n<i>💡 Подключите площадки для автопостинга контента</i>"
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            types.InlineKeyboardButton("➕ Добавить площадку", callback_data="add_platform_menu"),
-            types.InlineKeyboardButton("📝 Управление подключениями", callback_data="manage_platforms"),
-            types.InlineKeyboardButton("🔙 Назад", callback_data="back_to_settings")
-        )
-        
-        bot.send_message(
-            telegram_user_id,
-            text,
-            reply_markup=markup,
-            parse_mode='HTML',
-            disable_web_page_preview=True
-        )
+        show_connections_menu(fake_call)
         
     except Exception as e:
         print(f"⚠️ Не удалось отправить уведомление в Telegram: {e}")

@@ -725,3 +725,29 @@ def vk_callback():
         return render_template_string(VK_ERROR_PAGE, error_message=str(e))
 
 
+# ==========================================
+# НОВЫЕ VK ROUTES С PKCE + REFRESH_TOKEN
+# ==========================================
+
+@app.route('/vk/auth')
+def new_vk_auth():
+    """VK OAuth - начало (PKCE + refresh_token)"""
+    from vk_webhook import vk_auth
+    return vk_auth()
+
+
+@app.route('/vk/callback')  
+def new_vk_callback():
+    """VK OAuth callback (PKCE + refresh_token + auto-show connections)"""
+    from vk_webhook import vk_callback
+    return vk_callback()
+
+
+print("✅ OAuth Server loaded with VK PKCE routes")
+print("   /vk/auth - VK OAuth start")
+print("   /vk/callback - VK OAuth callback with auto-refresh tokens")
+print("   /pinterest/callback - Pinterest OAuth callback")
+print("   /health - Health check")
+
+
+
