@@ -8,8 +8,8 @@ import base64
 import secrets
 
 # VK Application credentials
-VK_APP_ID = os.getenv("VK_APP_ID", "54435352")  # Новое VK ID приложение
-VK_APP_SECRET = os.getenv("VK_APP_SECRET", "")  # Не используется в VK ID
+VK_APP_ID = os.getenv("VK_APP_ID", "54431232")  # Standalone приложение
+VK_APP_SECRET = os.getenv("VK_APP_SECRET", "")  # Сервисный ключ из настроек
 
 # Redirect URI для OAuth callback
 VK_REDIRECT_URI = "https://alexshylman-sudo-project.onrender.com/vk_callback"
