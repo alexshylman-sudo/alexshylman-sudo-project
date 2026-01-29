@@ -8,7 +8,7 @@ import base64
 import secrets
 
 # VK Application credentials
-VK_APP_ID = os.getenv("VK_APP_ID", "54431232")  # Standalone приложение
+VK_APP_ID = os.getenv("VK_APP_ID", "5354809")  # Standalone приложение "Хроники героя"
 VK_APP_SECRET = os.getenv("VK_APP_SECRET", "")  # Сервисный ключ из настроек
 
 # Redirect URI для OAuth callback
