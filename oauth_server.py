@@ -20,13 +20,20 @@ from config import (
 
 app = Flask(__name__)
 
-# Инициализируем БД
-try:
-    db = Database()
-    print("✅ Database connected")
-except Exception as e:
-    print(f"❌ Database connection error: {e}")
-    db = None
+# Функция для получения свежего подключения к БД
+def get_db():
+    """
+    Создаёт новое подключение к БД для каждого запроса
+    Решает проблему SSL connection timeout
+    """
+    try:
+        db = Database()
+        # Проверяем подключение
+        db.cursor.execute("SELECT 1")
+        return db
+    except Exception as e:
+        print(f"❌ Database connection error: {e}")
+        return None
 
 # HTML шаблон для страницы успеха
 SUCCESS_PAGE = """
@@ -290,6 +297,9 @@ def pinterest_callback():
             bot_username=bot_username
         )
     
+    # Получаем свежее подключение к БД
+    db = get_db()
+    
     if not db:
         print("❌ Database not connected")
         return render_template_string(
@@ -395,6 +405,7 @@ def pinterest_callback():
             WHERE id = %s
         """, (json.dumps(connections), user_id))
         db.conn.commit()
+        db.close()  # Закрываем соединение
         
         print("✅ Pinterest connected successfully!")
         print("=" * 60)
@@ -410,6 +421,13 @@ def pinterest_callback():
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         print("=" * 60)
+        
+        # Закрываем соединение при ошибке
+        try:
+            if db:
+                db.close()
+        except:
+            pass
         
         return render_template_string(
             ERROR_PAGE,
@@ -593,6 +611,9 @@ def vk_callback():
         return render_template_string(VK_ERROR_PAGE, error_message="Некорректный формат state")
     
     try:
+        # Получаем свежее подключение к БД
+        db = get_db()
+        
         # Получаем VK App credentials из переменных окружения
         VK_APP_ID = os.getenv('VK_APP_ID', '54433963')
         VK_APP_SECRET = os.getenv('VK_APP_SECRET', '')
@@ -698,6 +719,7 @@ def vk_callback():
         """, (json.dumps(platform_connections), telegram_user_id))
         
         db.conn.commit()
+        db.close()  # Закрываем соединение
         
         print(f"✅ VK подключен для пользователя {telegram_user_id}")
         print(f"   VK ID: {vk_user_id}")
@@ -722,6 +744,14 @@ def vk_callback():
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         print("=" * 60 + "\n")
+        
+        # Закрываем соединение при ошибке
+        try:
+            if db:
+                db.close()
+        except:
+            pass
+        
         return render_template_string(VK_ERROR_PAGE, error_message=str(e))
 
 
