@@ -63,8 +63,10 @@ def get_vk_auth_url(telegram_user_id: int) -> str:
     code_verifier, code_challenge = generate_pkce_pair()
     
     # Сохраняем verifier в БД для межпроцессного доступа
-    from database.database import db
     try:
+        from database.database import Database
+        db = Database()
+        
         db.cursor.execute("""
             INSERT INTO vk_pkce_sessions (telegram_user_id, code_verifier, created_at)
             VALUES (%s, %s, NOW())
@@ -72,6 +74,11 @@ def get_vk_auth_url(telegram_user_id: int) -> str:
             DO UPDATE SET code_verifier = EXCLUDED.code_verifier, created_at = NOW()
         """, (telegram_user_id, code_verifier))
         db.conn.commit()
+        
+        # Закрываем подключение
+        db.cursor.close()
+        db.conn.close()
+        
     except Exception as e:
         print(f"⚠️ Ошибка сохранения PKCE: {e}")
         # Fallback на in-memory storage
@@ -101,8 +108,10 @@ def get_pkce_verifier(telegram_user_id: int) -> str:
         str: code_verifier или None
     """
     # Сначала пробуем получить из БД
-    from database.database import db
     try:
+        from database.database import Database
+        db = Database()
+        
         db.cursor.execute("""
             SELECT code_verifier FROM vk_pkce_sessions
             WHERE telegram_user_id = %s
@@ -117,7 +126,17 @@ def get_pkce_verifier(telegram_user_id: int) -> str:
                 DELETE FROM vk_pkce_sessions WHERE telegram_user_id = %s
             """, (telegram_user_id,))
             db.conn.commit()
+            
+            # Закрываем подключение
+            db.cursor.close()
+            db.conn.close()
+            
             return code_verifier
+            
+        # Закрываем подключение если нет результата
+        db.cursor.close()
+        db.conn.close()
+        
     except Exception as e:
         print(f"⚠️ Ошибка получения PKCE из БД: {e}")
     

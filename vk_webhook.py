@@ -214,36 +214,39 @@ def vk_callback():
             error_message="Этот VK аккаунт уже подключен (у вас или у другого пользователя)"
         )
     
-    # Отправляем уведомление и показываем подключения
+    # Отправляем уведомление
     try:
-        from loader import bot
-        from handlers.platform_connections.main_menu import show_connections_menu
-        from telebot import types
+        import os
+        import requests
         
-        # Создаём фейковое сообщение для show_connections_menu
-        class FakeMessage:
-            def __init__(self, chat_id):
-                self.chat = types.Chat(chat_id, 'private')
-                self.message_id = 0
+        BOT_TOKEN = os.getenv('BOT_TOKEN')
         
-        class FakeCall:
-            def __init__(self, user_id):
-                self.from_user = types.User(user_id, False, 'User')
-                self.message = FakeMessage(user_id)
-                self.id = 0
-        
-        fake_call = FakeCall(telegram_user_id)
-        
-        # Отправляем уведомление
-        bot.send_message(
-            telegram_user_id,
-            "✅ <b>VK успешно подключен!</b>\n\n"
-            "Теперь вы можете публиковать посты в ВКонтакте.",
-            parse_mode='HTML'
-        )
-        
-        # Показываем меню подключений
-        show_connections_menu(fake_call)
+        if not BOT_TOKEN:
+            print("⚠️ BOT_TOKEN not set - skip Telegram notification")
+        else:
+            # Отправляем уведомление через прямой API
+            telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+            
+            message_text = (
+                "✅ <b>VK успешно подключен!</b>\n\n"
+                "Теперь вы можете публиковать посты в ВКонтакте.\n\n"
+                "Откройте 'МОИ ПОДКЛЮЧЕНИЯ' чтобы увидеть все площадки."
+            )
+            
+            response = requests.post(
+                telegram_api_url,
+                json={
+                    'chat_id': telegram_user_id,
+                    'text': message_text,
+                    'parse_mode': 'HTML'
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                print(f"✅ Telegram notification sent to user {telegram_user_id}")
+            else:
+                print(f"⚠️ Telegram notification failed: {response.status_code}")
         
     except Exception as e:
         print(f"⚠️ Не удалось отправить уведомление в Telegram: {e}")

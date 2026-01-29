@@ -20,6 +20,23 @@ from config import (
 
 app = Flask(__name__)
 
+# ==========================================
+# ИМПОРТ VK WEBHOOK ROUTES
+# ==========================================
+# Регистрируем routes из vk_webhook.py
+try:
+    import vk_webhook
+    
+    # Регистрируем VK callback route
+    app.add_url_rule('/vk_callback', 'vk_callback_old', vk_webhook.vk_callback, methods=['GET'])
+    
+    print("✅ VK webhook routes registered from vk_webhook.py")
+except Exception as e:
+    print(f"⚠️ Could not register VK routes: {e}")
+    import traceback
+    traceback.print_exc()
+
+
 # Функция для получения свежего подключения к БД
 def get_db():
     """
@@ -368,8 +385,23 @@ def pinterest_callback():
             timeout=10
         )
         
+        print(f"   User info response status: {user_response.status_code}")
+        
         if user_response.status_code != 200:
-            raise Exception(f"Failed to get user info: HTTP {user_response.status_code}")
+            error_detail = user_response.text
+            print(f"❌ Pinterest API error: {error_detail}")
+            
+            # Закрываем БД
+            try:
+                db.cursor.close()
+                db.conn.close()
+            except:
+                pass
+            
+            raise Exception(
+                f"Pinterest API вернул ошибку (HTTP {user_response.status_code}). "
+                f"Возможно, токен истёк или недостаточно прав. Попробуйте подключиться заново."
+            )
         
         user_data = user_response.json()
         pinterest_username = user_data.get('username', 'Unknown')
@@ -471,34 +503,37 @@ def pinterest_callback():
         
         # Отправляем уведомление и меню подключений в Telegram
         try:
-            from loader import bot
-            from handlers.platform_connections.main_menu import show_connections_menu
-            from telebot import types
+            import os
+            import requests
             
-            # Создаём фейковое сообщение для show_connections_menu
-            class FakeMessage:
-                def __init__(self, chat_id):
-                    self.chat = types.Chat(chat_id, 'private')
-                    self.message_id = 0
+            BOT_TOKEN = os.getenv('BOT_TOKEN')
             
-            class FakeCall:
-                def __init__(self, user_id):
-                    self.from_user = types.User(user_id, False, 'User')
-                    self.message = FakeMessage(user_id)
-                    self.id = 0
-            
-            fake_call = FakeCall(user_id)
-            
-            # Отправляем уведомление
-            bot.send_message(
-                user_id,
-                "✅ <b>Pinterest успешно подключен!</b>\n\n"
-                f"Аккаунт @{pinterest_username} готов к работе.",
-                parse_mode='HTML'
-            )
-            
-            # Показываем меню подключений
-            show_connections_menu(fake_call)
+            if not BOT_TOKEN:
+                print("⚠️ BOT_TOKEN not set - skip Telegram notification")
+            else:
+                # Отправляем уведомление через прямой API
+                telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                
+                message_text = (
+                    "✅ <b>Pinterest успешно подключен!</b>\n\n"
+                    f"Аккаунт @{pinterest_username} готов к работе.\n\n"
+                    "Откройте 'МОИ ПОДКЛЮЧЕНИЯ' чтобы увидеть все площадки."
+                )
+                
+                response = requests.post(
+                    telegram_api_url,
+                    json={
+                        'chat_id': user_id,
+                        'text': message_text,
+                        'parse_mode': 'HTML'
+                    },
+                    timeout=10
+                )
+                
+                if response.status_code == 200:
+                    print(f"✅ Telegram notification sent to user {user_id}")
+                else:
+                    print(f"⚠️ Telegram notification failed: {response.status_code}")
             
         except Exception as e:
             print(f"⚠️ Не удалось отправить уведомление в Telegram: {e}")
@@ -860,27 +895,16 @@ def vk_callback():
 
 
 # ==========================================
-# НОВЫЕ VK ROUTES С PKCE + REFRESH_TOKEN
+# VK ROUTES - используем из vk_webhook.py
 # ==========================================
-
-@app.route('/vk/auth')
-def new_vk_auth():
-    """VK OAuth - начало (PKCE + refresh_token)"""
-    from vk_webhook import vk_auth
-    return vk_auth()
+# VK routes подключаются через vk_webhook.py:
+# - /vk_callback
+# Не нужны дополнительные routes здесь
 
 
-@app.route('/vk/callback')  
-def new_vk_callback():
-    """VK OAuth callback (PKCE + refresh_token + auto-show connections)"""
-    from vk_webhook import vk_callback
-    return vk_callback()
-
-
-print("✅ OAuth Server loaded with VK PKCE routes")
-print("   /vk/auth - VK OAuth start")
-print("   /vk/callback - VK OAuth callback with auto-refresh tokens")
+print("✅ OAuth Server loaded")
 print("   /pinterest/callback - Pinterest OAuth callback")
+print("   /vk_callback - VK OAuth callback (from vk_webhook.py)")
 print("   /health - Health check")
 
 
