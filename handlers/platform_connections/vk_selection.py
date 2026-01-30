@@ -131,7 +131,8 @@ def handle_vk_selection(call):
             # Создаём подключение личной страницы
             vk_connection = {
                 'type': 'user',
-                'user_id': vk_user_id,
+                'id': vk_user_id,  # ID для поиска
+                'user_id': vk_user_id,  # Дублируем для совместимости
                 'access_token': access_token,
                 'refresh_token': refresh_token,
                 'device_id': device_id,
@@ -191,6 +192,7 @@ def handle_vk_selection(call):
             # Создаём подключение группы
             vk_connection = {
                 'type': 'group',
+                'id': str(-group_id),  # ID для поиска (отрицательный как строка)
                 'user_id': vk_user_id,  # ID владельца токена
                 'group_id': -group_id,  # ОТРИЦАТЕЛЬНЫЙ для VK API!
                 'access_token': access_token,
