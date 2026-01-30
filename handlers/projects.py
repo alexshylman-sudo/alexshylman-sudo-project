@@ -543,31 +543,118 @@ def show_quick_publish_menu(call):
         'vk': ('🔵 VK', 'vk')
     }
     
-    # Собираем все подключенные платформы из всех проектов
-    connected_platforms = set()
+    # Собираем ВСЕ конкретные подключения из всех проектов
+    all_connections = []
     
     for bot_item in bots:
         bot_connections = bot_item.get('connected_platforms', {})
         
-        for platform_type in ['website', 'pinterest', 'instagram', 'telegram', 'vk']:
-            # Проверяем старый и новый формат подключений
-            platform_key_old = f"{platform_type}s"  # websites, telegrams, etc
-            platform_key_new = platform_type  # website, telegram, etc
+        # WordPress сайты
+        if 'website' in bot_connections or 'websites' in bot_connections:
+            websites = bot_connections.get('website') or bot_connections.get('websites', [])
+            if not isinstance(websites, list):
+                websites = [websites] if websites else []
             
-            if bot_connections.get(platform_key_new) or bot_connections.get(platform_key_old):
-                connected_platforms.add(platform_type)
+            for ws in websites:
+                if ws.get('status') == 'active':
+                    domain = ws.get('domain', ws.get('url', 'Сайт'))
+                    # Убираем http(s):// для краткости
+                    domain = domain.replace('https://', '').replace('http://', '').split('/')[0]
+                    all_connections.append({
+                        'icon': '🌐',
+                        'name': domain,
+                        'platform': 'website',
+                        'connection_id': ws.get('id'),
+                        'bot_id': bot_item['id']
+                    })
+        
+        # Pinterest доски
+        if 'pinterest' in bot_connections or 'pinterests' in bot_connections:
+            pinterests = bot_connections.get('pinterest') or bot_connections.get('pinterests', [])
+            if not isinstance(pinterests, list):
+                pinterests = [pinterests] if pinterests else []
+            
+            for pin in pinterests:
+                if pin.get('status') == 'active':
+                    board_name = pin.get('board_name', 'Доска')
+                    all_connections.append({
+                        'icon': '📌',
+                        'name': board_name,
+                        'platform': 'pinterest',
+                        'connection_id': pin.get('board_id'),
+                        'bot_id': bot_item['id']
+                    })
+        
+        # Telegram каналы
+        if 'telegram' in bot_connections or 'telegrams' in bot_connections:
+            telegrams = bot_connections.get('telegram') or bot_connections.get('telegrams', [])
+            if not isinstance(telegrams, list):
+                telegrams = [telegrams] if telegrams else []
+            
+            for tg in telegrams:
+                if tg.get('status') == 'active':
+                    channel_name = tg.get('channel_name', tg.get('title', 'Канал'))
+                    all_connections.append({
+                        'icon': '✈️',
+                        'name': channel_name,
+                        'platform': 'telegram',
+                        'connection_id': tg.get('channel_id'),
+                        'bot_id': bot_item['id']
+                    })
+        
+        # VK страницы и группы
+        if 'vk' in bot_connections or 'vks' in bot_connections:
+            vks = bot_connections.get('vk') or bot_connections.get('vks', [])
+            if not isinstance(vks, list):
+                vks = [vks] if vks else []
+            
+            for vk in vks:
+                if vk.get('status') == 'active':
+                    vk_type = vk.get('type', 'user')
+                    if vk_type == 'user':
+                        vk_name = vk.get('group_name', 'Моя страница')
+                        icon = '👤'
+                    else:
+                        vk_name = vk.get('group_name', 'Группа')
+                        icon = '📝'
+                    
+                    all_connections.append({
+                        'icon': icon,
+                        'name': vk_name,
+                        'platform': 'vk',
+                        'connection_id': vk.get('id'),
+                        'bot_id': bot_item['id']
+                    })
+        
+        # Instagram
+        if 'instagram' in bot_connections or 'instagrams' in bot_connections:
+            instagrams = bot_connections.get('instagram') or bot_connections.get('instagrams', [])
+            if not isinstance(instagrams, list):
+                instagrams = [instagrams] if instagrams else []
+            
+            for ig in instagrams:
+                if ig.get('status') == 'active':
+                    ig_name = ig.get('username', 'Instagram')
+                    all_connections.append({
+                        'icon': '📷',
+                        'name': ig_name,
+                        'platform': 'instagram',
+                        'connection_id': ig.get('id'),
+                        'bot_id': bot_item['id']
+                    })
     
-    # Добавляем кнопки для подключенных платформ
-    for platform_type in ['website', 'pinterest', 'instagram', 'telegram', 'vk']:
-        if platform_type in connected_platforms:
-            platforms_found = True
-            icon, name = platform_names[platform_type]
-            markup.add(
-                types.InlineKeyboardButton(
-                    f"{icon} Опубликовать",
-                    callback_data=f"quick_publish_{platform_type}"
-                )
+    # Добавляем кнопки для каждого подключения
+    for conn in all_connections:
+        platforms_found = True
+        # Ограничиваем длину названия
+        display_name = conn['name'][:30] + '...' if len(conn['name']) > 30 else conn['name']
+        
+        markup.add(
+            types.InlineKeyboardButton(
+                f"{conn['icon']} {display_name}",
+                callback_data=f"quick_publish_{conn['platform']}_{conn['bot_id']}"
             )
+        )
     
     if not platforms_found:
         text += "\n\n⚠️ <b>Нет подключенных платформ</b>\n"

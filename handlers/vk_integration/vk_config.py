@@ -18,13 +18,13 @@ VK_REDIRECT_URI = "https://alexshylman-sudo-project.onrender.com/vk_callback"
 # VK API версия
 VK_API_VERSION = "5.131"
 
-# Права доступа (scope) для VK OAuth
-# Старый OAuth API (полный доступ к wall, photos, groups)
-VK_OAUTH_SCOPE = "wall,photos,groups,offline"  # offline = долгоживущий токен
+# Права доступа (scope) для VK ID OAuth 2.1
+# VK ID использует специальные scope
+VK_OAUTH_SCOPE = "vkid.personal_info"  # Базовая информация о пользователе
 
-# URLs - VK OAuth (старый, полный API)
-VK_OAUTH_AUTHORIZE_URL = "https://oauth.vk.com/authorize"
-VK_OAUTH_TOKEN_URL = "https://oauth.vk.com/access_token"
+# URLs - VK ID OAuth 2.1 (новый протокол)
+VK_OAUTH_AUTHORIZE_URL = "https://id.vk.com/authorize"
+VK_OAUTH_TOKEN_URL = "https://id.vk.com/oauth2/auth"
 VK_API_BASE_URL = "https://api.vk.com/method"
 
 # Временное хранилище для PKCE verifiers

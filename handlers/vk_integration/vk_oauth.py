@@ -345,7 +345,9 @@ class VKOAuth:
             # Проверяем не подключен ли уже этот VK аккаунт у ТЕКУЩЕГО пользователя
             existing_index = None
             for i, existing_vk in enumerate(vks):
-                if existing_vk.get('user_id') == vk_data['user_id']:
+                existing_id = existing_vk.get('id') or existing_vk.get('user_id')
+                new_id = vk_data.get('id') or vk_data.get('user_id')
+                if str(existing_id) == str(new_id):
                     # VK уже подключен у текущего пользователя - запрещаем
                     print(f"❌ VK ID {vk_user_id} уже подключен у пользователя {telegram_user_id}")
                     return False
@@ -411,7 +413,9 @@ class VKOAuth:
             vk_connection = None
             vk_index = None
             for i, vk in enumerate(vks):
-                if str(vk.get('user_id')) == str(vk_user_id):
+                # Ищем по полю 'id' (основное) или 'user_id' (для совместимости со старыми)
+                vk_id = vk.get('id') or vk.get('user_id') or vk.get('group_id')
+                if str(vk_id) == str(vk_user_id) or str(vk.get('user_id')) == str(vk_user_id):
                     vk_connection = vk
                     vk_index = i
                     break
